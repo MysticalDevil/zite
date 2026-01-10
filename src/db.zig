@@ -43,4 +43,12 @@ pub const Db = struct {
             return error.SqliteExecFailed;
         }
     }
+
+    pub fn lastInsertRowId(self: *Self) i64 {
+        return c.sqlite3_last_insert_rowid(self.handle);
+    }
+
+    pub fn changes(self: *Self) c_int {
+        return c.sqlite3_changes(self.handle);
+    }
 };

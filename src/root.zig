@@ -5,3 +5,5 @@ pub const schema = @import("schema.zig");
 pub const stmt = @import("stmt.zig");
 pub const Stmt = stmt.Stmt;
 pub const StepResult = stmt.StepResult;
+
+pub const mapper = @import("mapper.zig");
