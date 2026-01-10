@@ -76,6 +76,12 @@ pub const Stmt = struct {
             return error.SqliteBindFailed;
     }
 
+    pub fn bindFloat(self: *Self, idx: c_int, value: i64) !void {
+        const rc = c.sqlite3_bind_double(self.stmt, idx, @as(f64, @floatCast(value)));
+        if (rc != db_ok)
+            return error.SqliteBindFailed;
+    }
+
     pub fn bindBool(self: *Self, idx: c_int, value: bool) !void {
         const rc = c.sqlite3_bind_int(self.stmt, idx, if (value) 1 else 0);
         if (rc != db_ok)
@@ -94,6 +100,52 @@ pub const Stmt = struct {
         const rc = c.sqlite3_bind_blob(self.stmt, idx, value.ptr, n, SQLITE_TRANSIENT);
         if (rc != db_ok)
             return error.SqliteBindFailed;
+    }
+
+    /// General Binding: Supports int/uint/bool/float/enum/[]const u8/[]u8/optional(?T)
+    pub fn bindOne(self: *Self, idx: c_int, value: anytype) !void {
+        const T = @TypeOf(value);
+
+        switch (@typeInfo(T)) {
+            .optional => |_| {
+                if (value == null)
+                    return self.bindNull(idx);
+                return self.bindOne(idx, value.?);
+            },
+            .bool => return self.bindBool(idx, value),
+            .int, .comptime_int => return self.bindInt(idx, value),
+            .float, .comptime_float => return self.bindFloat(idx, value),
+            .@"enum" => return self.bindInt(idx, @as(i64, @intCast(@intFromEnum(value)))),
+            .pointer => |p| {
+                if (p.size == .slice and p.child == u8)
+                    return self.bindText(idx, value);
+                return error.UnsupportedBindType;
+            },
+            .array => |a| {
+                if (a.child == u8)
+                    return self.bindBlob(idx, value[0..]);
+                return error.UnsupportedBindType;
+            },
+            else => return error.UnsupportedBindType,
+        }
+    }
+
+    /// Bind multiple parameters at once: params should be passed as a tuple (anonymous struct): .{ a, b, c }
+    /// Rules:
+    /// - Parameter indices start at 1 (SQLite convention)
+    /// - Supports tuples / regular structs (field order matters)
+    pub fn bindAll(self: *Self, params: anytype) !void {
+        const P = @TypeOf(params);
+        const ti = @typeInfo(P);
+
+        if (ti != .@"struct")
+            return error.BindAllExpecteStructOrTuple;
+
+        const s = ti.@"struct";
+        inline for (s.fields, 0..) |f, i| {
+            const v = @field(params, f.name);
+            try self.bindOne(@as(c_int, @intCast(i + 1)), v);
+        }
     }
 
     // --------- column (0-based index, valid when setp()==.row) ----------
