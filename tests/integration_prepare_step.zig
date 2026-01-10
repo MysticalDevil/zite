@@ -14,7 +14,7 @@ test "prepare_v2 + step: verify users table exists via sqlite_master" {
     const a = gpa.allocator();
 
     // Step 1: memory db
-    var db = try orm.Db.open(a, ":memery:");
+    var db = try orm.Db.open(a, ":memory:");
     defer db.close();
 
     // Step 2: Create table (Use schema generator + exec to preform a DDL operation)

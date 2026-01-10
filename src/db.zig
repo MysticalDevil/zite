@@ -27,6 +27,10 @@ pub const Db = struct {
         _ = c.sqlite3_close(self.handle);
     }
 
+    pub fn deinit(self: *Self) void {
+        self.close();
+    }
+
     pub fn exec(self: *Self, sql: []const u8) !void {
         const sql_z = try self.allocator.dupeZ(u8, sql);
         defer self.allocator.free(sql_z);
