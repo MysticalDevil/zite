@@ -177,4 +177,21 @@ pub const Stmt = struct {
         const bytes: [*]const u8 = @ptrCast(p);
         return bytes[0..len];
     }
+
+    pub fn colIsNull(self: *Self, col: c_int) bool {
+        return c.sqlite3_column_type(self.stmt, col) == c.SQLITE_NULL;
+    }
+
+    pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: c_int) !?[]u8 {
+        const p = c.sqlite3_column_text(self.stmt, col);
+        if (p == null) return null;
+
+        const n = c.sqlite3_column_bytes(self.stmt, col);
+        const len: usize = @intCast(n);
+
+        const src: [*]const u8 = @ptrCast(p);
+        const out = try a.alloc(u8, len);
+        if (len != 0) std.mem.copyForwards(u8, out, src[0..len]);
+        return out;
+    }
 };

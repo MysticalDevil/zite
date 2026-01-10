@@ -7,6 +7,46 @@ const Stmt = root.Stmt;
 const meta = @import("meta.zig");
 const sqlutil = @import("sqlutil.zig");
 
+fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct") @compileError("pkFieldType expects a struct type");
+
+    inline for (ti.@"struct".fields) |f| {
+        if (comptime meta.isPk(f.name, m.primary_key)) return f.type;
+    }
+    @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " + m.primary_key);
+}
+
+fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: c_int) !FieldT {
+    switch (@typeInfo(FieldT)) {
+        .optional => |o| {
+            if (st.colIsNull(col)) return null;
+            const Child = o.child;
+            const v = try readValue(Child, st, allocator, col);
+            return @as(FieldT, v);
+        },
+        .bool => return st.colBool(col),
+        .int, .comptime_int => {
+            const v = st.colInt(col);
+            return @as(FieldT, @intCast(v));
+        },
+        .@"enum" => {
+            const v = st.colInt(col);
+            const tag_ty = @typeInfo(FieldT).@"enum".tag_type;
+            return @enumFromInt(@as(tag_ty, @intCast(v)));
+        },
+        .pointer => |p| {
+            if (p.size == .slice and p.child == u8) {
+                const owned = (try st.colTextOwned(allocator, col)) orelse return error.UnexpectedNull;
+                return owned;
+            }
+            return error.UnexpectedColumnType;
+        },
+
+        else => return error.UnsupportedColumnType,
+    }
+}
+
 pub fn insert(comptime T: type, db: *Db, entity: T) !i64 {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("insert expects a struct type");
@@ -109,4 +149,59 @@ pub fn update(comptime T: type, db: *Db, entity: T) !c_int {
     if (r != .done) return error.UnexpectedRowOnUpdate;
 
     return db.changes();
+}
+
+/// SELECT *by pk*, return ?T; if it contains TEXT slice fields, they will be allocated
+/// on the allocator, and the caller is responsible for freeing them.
+pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) !?T {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct") @compileError("getById expects a struct type");
+
+    const m = comptime meta.getMeta(T);
+    const fields = ti.@"struct".fields;
+
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(db.allocator);
+    const w0 = buf.writer(db.allocator);
+    const w = w0.any();
+
+    try w.writeAll("SELECT ");
+
+    comptime var i: usize = 0;
+    inline for (fields) |f| {
+        if (i != 0) try w.writeAll(", ");
+        try sqlutil.writeIdent(w, f.name);
+        i += 1;
+    }
+
+    try w.writeAll(" FROM ");
+    try sqlutil.writeIdent(w, m.table);
+    try w.writeAll(" WHERE ");
+    try sqlutil.writeIdent(w, m.primary_key);
+    try w.writeAll("=?1 LIMIT 1;");
+
+    const sql = try buf.toOwnedSlice(db.allocator);
+    defer db.allocator.free(sql);
+
+    var st = try Stmt.init(db, sql);
+    defer st.deinit();
+
+    try st.bindOne(1, id);
+
+    const r = try st.step();
+    if (r == .done) return null;
+
+    var out: T = undefined;
+
+    comptime var col: usize = 0;
+    inline for (fields) |f| {
+        const v = try readValue(f.type, &st, allocator, @as(c_int, @intCast(col)));
+        @field(out, f.name) = v;
+        col += 1;
+    }
+
+    const r2 = try st.step();
+    if (r2 != .done) return error.UnexpectedExtraRows;
+
+    return out;
 }
