@@ -1,4 +1,6 @@
 const std = @import("std");
+const meta = @import("meta.zig");
+const sqlutil = @import("sqlutil.zig");
 
 pub const CreateTableOptions = struct {
     table_name: []const u8,
@@ -50,12 +52,6 @@ fn sqliteDeclaredType(comptime T_in: type) []const u8 {
     };
 }
 
-fn writeIdent(w: anytype, name: []const u8) !void {
-    try w.writeByte('"');
-    try w.writeAll(name);
-    try w.writeByte('"');
-}
-
 fn isPrimaryKeyField(comptime field_name: []const u8, opts: CreateTableOptions) bool {
     if (opts.primary_key) |pk| {
         return std.mem.eql(u8, field_name, pk);
@@ -70,12 +66,13 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
     var list: std.ArrayList(u8) = .empty;
     errdefer list.deinit(allocator);
 
-    const w = list.writer(allocator);
+    const w0 = list.writer(allocator);
+    const w = w0.any();
 
     try w.writeAll("CREATE TABLE ");
     if (opts.if_not_exists) try w.writeAll("IF NOT EXISTS ");
 
-    try writeIdent(w, opts.table_name);
+    try sqlutil.writeIdent(w, opts.table_name);
 
     try w.writeAll(" (\n");
 
@@ -83,7 +80,7 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
 
     inline for (fields, 0..) |f, i| {
         try w.writeAll("  ");
-        try writeIdent(w, f.name);
+        try sqlutil.writeIdent(w, f.name);
         try w.writeByte(' ');
         try w.writeAll(sqliteDeclaredType(f.type));
 
@@ -113,6 +110,16 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
     try w.writeAll(");");
 
     return try list.toOwnedSlice(allocator);
+}
+
+pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) ![]u8 {
+    const m = comptime meta.getMeta(T);
+    return createTableSql(allocator, T, .{
+        .table_name = m.table,
+        .primary_key = m.primary_key,
+        .autoincrement = true,
+        .if_not_exists = true,
+    });
 }
 
 test "createTableSql: basic struct -> CREATE TABLE with NOT NULL and PK" {

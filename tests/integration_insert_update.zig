@@ -6,6 +6,10 @@ const User = struct {
     name: []const u8,
     age: ?i64,
     created_at: i64,
+
+    pub const Meta = .{
+        .table = "users",
+    };
 };
 
 test "mapper.insert + mapper.update: roundtrip" {
@@ -27,14 +31,14 @@ test "mapper.insert + mapper.update: roundtrip" {
         .created_at = 123,
     };
 
-    const new_id = try orm.mapper.insert(User, &db, "users", u, .{});
+    const new_id = try orm.mapper.insert(User, &db, u);
     try std.testing.expect(new_id > 0);
 
     u.id = new_id;
     u.name = "alice2";
     u.age = 42;
 
-    const changed = try orm.mapper.update(User, &db, "users", u, .{});
+    const changed = try orm.mapper.update(User, &db, u);
     try std.testing.expectEqual(@as(c_int, 1), changed);
 
     var st = try orm.Stmt.init(&db, "SELECT name, age FROM users WHERE id=?1 LIMIT 1;");
