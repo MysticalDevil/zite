@@ -1,5 +1,5 @@
 const std = @import("std");
-const orm = @import("zig_orm_sqlite");
+const orm = @import("zite");
 
 const User = struct {
     id: i64,

@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const orm = b.addModule("zig_orm_sqlite", .{
+    const orm = b.addModule("zite", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = true,
         .imports = &.{
-            .{ .name = "zig_orm_sqlite", .module = orm },
+            .{ .name = "zite", .module = orm },
         },
     });
     it_mod.linkSystemLibrary("sqlite3", .{ .needed = true });

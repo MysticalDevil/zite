@@ -1,5 +1,5 @@
 const std = @import("std");
-const orm = @import("zig_orm_sqlite");
+const orm = @import("zite");
 
 test "Stmt: prepare + step reads scalar result" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

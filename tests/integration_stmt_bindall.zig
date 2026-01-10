@@ -1,5 +1,5 @@
 const std = @import("std");
-const orm = @import("zig_orm_sqlite");
+const orm = @import("zite");
 
 test "Stmt.bindAll: binds int/text/null and reads them back" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
