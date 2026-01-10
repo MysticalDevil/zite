@@ -117,8 +117,22 @@ pub const Stmt = struct {
             .float, .comptime_float => return self.bindFloat(idx, value),
             .@"enum" => return self.bindInt(idx, @as(i64, @intCast(@intFromEnum(value)))),
             .pointer => |p| {
-                if (p.size == .slice and p.child == u8)
-                    return self.bindText(idx, value);
+                switch (p.size) {
+                    .slice => if (p.child == u8) return self.bindText(idx, value),
+                    .one => {
+                        const child_info = @typeInfo(p.child);
+                        if (child_info == .array and child_info.array.child == u8) {
+                            const arr = value.*;
+                            return self.bindText(idx, arr[0..]);
+                        }
+                    },
+                    .many, .c => {
+                        if (p.child == u8 and p.sentinel != null) {
+                            const s = std.mem.sliceTo(value, 0);
+                            return self.bindText(idx, s);
+                        }
+                    },
+                }
                 return error.UnsupportedBindType;
             },
             .array => |a| {

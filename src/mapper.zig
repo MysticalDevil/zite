@@ -205,3 +205,65 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
 
     return out;
 }
+
+/// Generic query: where_clause provided by caller (excluding “WHERE” prefix)
+/// params is a tuple/struct (e.g., .{ 123, “alice” }), bound sequentially to ?1..?N
+///
+/// Returns ?T: null if no match is found; one record if found (TEXT slice fields allocate owned memory on the allocator)
+pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) !?T {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct") @compileError("findOne expects a struct type");
+
+    const m = comptime meta.getMeta(T);
+    const fields = ti.@"struct".fields;
+
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(db.allocator);
+    const w0 = buf.writer(db.allocator);
+    const w = w0.any();
+
+    try w.writeAll("SELECT ");
+
+    comptime var i: usize = 0;
+    inline for (fields) |f| {
+        if (i != 0) try w.writeAll(", ");
+        try sqlutil.writeIdent(w, f.name);
+        i += 1;
+    }
+
+    try w.writeAll(" FROM ");
+    try sqlutil.writeIdent(w, m.table);
+
+    const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
+    if (trimmed.len != 0) {
+        try w.writeAll(" WHERE ");
+        try w.writeAll(trimmed);
+    }
+
+    try w.writeAll(" LIMIT 1;");
+
+    const sql = try buf.toOwnedSlice(db.allocator);
+    defer db.allocator.free(sql);
+
+    var st = try Stmt.init(db, sql);
+    defer st.deinit();
+
+    try st.bindAll(params);
+
+    const r = try st.step();
+    if (r == .done) return null;
+
+    var out: T = undefined;
+
+    comptime var col: usize = 0;
+    inline for (fields) |f| {
+        const v = try readValue(f.type, &st, allocator, @as(c_int, @intCast(col)));
+        @field(out, f.name) = v;
+        col += 1;
+    }
+
+    const r2 = try st.step();
+    if (r2 != .done) return error.UnexpectedExtraRows;
+
+    return out;
+}
