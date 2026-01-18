@@ -7,4 +7,6 @@ comptime {
     _ = @import("integration_stmt_column_owned.zig");
     _ = @import("integration_getbyid.zig");
     _ = @import("integration_findone.zig");
+    _ = @import("integration_float_time.zig");
+    _ = @import("integration_findmany.zig");
 }

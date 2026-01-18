@@ -56,6 +56,46 @@ fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col
     }
 }
 
+pub fn Rows(comptime T: type) type {
+    return struct {
+        st: Stmt,
+        allocator: std.mem.Allocator,
+        done: bool = false,
+
+        pub fn deinit(self: *Rows(T)) void {
+            if (!self.done) {
+                self.st.deinit();
+                self.done = true;
+            }
+        }
+
+        pub fn next(self: *Rows(T)) !?T {
+            if (self.done) return null;
+
+            const r = try self.st.step();
+            if (r == .done) {
+                self.st.deinit();
+                self.done = true;
+                return null;
+            }
+
+            var out: T = undefined;
+
+            const ti = @typeInfo(T);
+            const fields = ti.@"struct".fields;
+
+            comptime var col: usize = 0;
+            inline for (fields) |f| {
+                const v = try readValue(f.type, &self.st, self.allocator, @as(c_int, @intCast(col)));
+                @field(out, f.name) = v;
+                col += 1;
+            }
+
+            return out;
+        }
+    };
+}
+
 pub fn insert(comptime T: type, db: *Db, entity: T) !i64 {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("insert expects a struct type");
@@ -146,7 +186,6 @@ pub fn update(comptime T: type, db: *Db, entity: T) !c_int {
         bind_i += 1;
     }
 
-    // pk 最后一个参数
     inline for (fields) |f| {
         if (comptime meta.isPk(f.name, m.primary_key)) {
             try st.bindOne(bind_i, @field(entity, f.name));
@@ -275,4 +314,79 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     if (r2 != .done) return error.UnexpectedExtraRows;
 
     return out;
+}
+
+pub fn freeOwned(comptime T: type, allocator: std.mem.Allocator, value: *T) void {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct")
+        @compileError("freeOwned expects a struct type");
+
+    inline for (ti.@"struct".fields) |f| {
+        freeField(f.type, allocator, &@field(value, f.name));
+    }
+}
+
+fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: anytype) void {
+    switch (@typeInfo(FieldT)) {
+        .optional => |o| {
+            if (field_ptr.*) |*v| {
+                freeField(o.child, allocator, v);
+            }
+        },
+        .pointer => |p| {
+            if (p.size == .slice and p.child == u8) {
+                const s = field_ptr.*;
+                if (s.len != 0) allocator.free(@constCast(s));
+            }
+        },
+        else => {},
+    }
+}
+
+pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) !Rows(T) {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct")
+        @compileError("findMany expects a struct type");
+
+    const m = comptime meta.getMeta(T);
+    const fields = ti.@"struct".fields;
+
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(db.allocator);
+    const w0 = buf.writer(db.allocator);
+    const w = w0.any();
+
+    try w.writeAll("SELECT ");
+
+    comptime var i: usize = 0;
+    inline for (fields) |f| {
+        if (i != 0)
+            try w.writeAll(", ");
+        try sqlutil.writeIdent(w, f.name);
+        i += 1;
+    }
+
+    try w.writeAll(" FROM ");
+    try sqlutil.writeIdent(w, m.table);
+
+    const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
+    if (trimmed.len != 0) {
+        try w.writeAll(" WHERE ");
+        try w.writeAll(trimmed);
+    }
+
+    try w.writeAll(";");
+
+    const sql = try buf.toOwnedSlice(db.allocator);
+    defer db.allocator.free(sql);
+
+    var st = try Stmt.init(db, sql);
+
+    try st.bindAll(params);
+
+    return Rows(T){
+        .st = st,
+        .allocator = allocator,
+        .done = false,
+    };
 }

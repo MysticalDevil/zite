@@ -1,6 +1,7 @@
 const std = @import("std");
 const meta = @import("meta.zig");
 const sqlutil = @import("sqlutil.zig");
+const types = @import("types.zig");
 
 pub const CreateTableOptions = struct {
     table_name: []const u8,
@@ -31,6 +32,8 @@ fn unwrapOptionalType(comptime T: type) type {
 /// - [N]u8 => BLOB
 fn sqliteDeclaredType(comptime T_in: type) []const u8 {
     const T = unwrapOptionalType(T_in);
+
+    if (T == types.UnixMillis) return "INTEGER";
 
     return switch (@typeInfo(T)) {
         .int, .comptime_int => "INTEGER",

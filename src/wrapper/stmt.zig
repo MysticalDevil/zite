@@ -72,7 +72,7 @@ pub const Stmt = struct {
             return error.SqliteBindFailed;
     }
 
-    pub fn bindFloat(self: *Self, idx: c_int, value: i64) !void {
+    pub fn bindFloat(self: *Self, idx: c_int, value: f64) !void {
         const rc = raw.sqlite3_bind_double(self.stmt, idx, @as(f64, @floatCast(value)));
         if (rc != db_ok)
             return error.SqliteBindFailed;
