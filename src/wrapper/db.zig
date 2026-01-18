@@ -1,12 +1,9 @@
 const std = @import("std");
-
-pub const c = @cImport({
-    @cInclude("sqlite3.h");
-});
+const raw = @import("../raw/sqlite3.zig");
 
 pub const Db = struct {
     allocator: std.mem.Allocator,
-    handle: *c.sqlite3,
+    handle: *raw.sqlite3,
 
     const Self = @This();
 
@@ -14,9 +11,9 @@ pub const Db = struct {
         const path_z = try allocator.dupeZ(u8, path);
         defer allocator.free(path_z);
 
-        var db_ptr: ?*c.sqlite3 = null;
-        const rc = c.sqlite3_open(path_z.ptr, &db_ptr);
-        if (rc != c.SQLITE_OK or db_ptr == null) {
+        var db_ptr: ?*raw.sqlite3 = null;
+        const rc = raw.sqlite3_open(path_z.ptr, &db_ptr);
+        if (rc != raw.SQLITE_OK or db_ptr == null) {
             return error.SqliteOpenFailed;
         }
 
@@ -24,7 +21,7 @@ pub const Db = struct {
     }
 
     pub fn close(self: *Self) void {
-        _ = c.sqlite3_close(self.handle);
+        _ = raw.sqlite3_close(self.handle);
     }
 
     pub fn deinit(self: *Self) void {
@@ -35,20 +32,24 @@ pub const Db = struct {
         const sql_z = try self.allocator.dupeZ(u8, sql);
         defer self.allocator.free(sql_z);
 
-        var errmsg: [*c]u8 = null;
-        const rc = c.sqlite3_exec(self.handle, sql_z.ptr, null, null, &errmsg);
-        defer if (errmsg != null) c.sqlite3_free(errmsg);
+        const rc = raw.sqlite3_exec(self.handle, sql_z.ptr, null, null, null);
 
-        if (rc != c.SQLITE_OK) {
+        if (rc != raw.SQLITE_OK) {
             return error.SqliteExecFailed;
         }
     }
 
+    pub fn errmsg(self: *Db) []const u8 {
+        const p = raw.sqlite3_errmsg(self.handle);
+        if (p == null) return "";
+        return std.mem.span(p);
+    }
+
     pub fn lastInsertRowId(self: *Self) i64 {
-        return c.sqlite3_last_insert_rowid(self.handle);
+        return raw.sqlite3_last_insert_rowid(self.handle);
     }
 
     pub fn changes(self: *Self) c_int {
-        return c.sqlite3_changes(self.handle);
+        return raw.sqlite3_changes(self.handle);
     }
 };
