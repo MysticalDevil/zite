@@ -62,14 +62,16 @@ pub fn Rows(comptime T: type) type {
         allocator: std.mem.Allocator,
         done: bool = false,
 
-        pub fn deinit(self: *Rows(T)) void {
+        const Self = @This();
+
+        pub fn deinit(self: *Self) void {
             if (!self.done) {
                 self.st.deinit();
                 self.done = true;
             }
         }
 
-        pub fn next(self: *Rows(T)) !?T {
+        pub fn next(self: *Self) !?T {
             if (self.done) return null;
 
             const r = try self.st.step();
@@ -79,7 +81,8 @@ pub fn Rows(comptime T: type) type {
                 return null;
             }
 
-            var out: T = undefined;
+            var out: T = std.mem.zeroes(T);
+            errdefer freeOwned(T, self.allocator, &out);
 
             const ti = @typeInfo(T);
             const fields = ti.@"struct".fields;
@@ -92,6 +95,25 @@ pub fn Rows(comptime T: type) type {
             }
 
             return out;
+        }
+    };
+}
+
+pub fn RowsOwned(comptime T: type) type {
+    return struct {
+        rows: Rows(T),
+
+        const Self = @This();
+
+        pub fn deinit(self: *Self) void {
+            self.rows.deinit();
+        }
+
+        pub fn next(self: *Self) !?Owned(T) {
+            if (try self.rows.next()) |v| {
+                return wrapOwned(T, self.rows.allocator, v);
+            }
+            return null;
         }
     };
 }
@@ -239,7 +261,8 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
     const r = try st.step();
     if (r == .done) return null;
 
-    var out: T = undefined;
+    var out: T = std.mem.zeroes(T);
+    errdefer freeOwned(T, allocator, &out);
 
     comptime var col: usize = 0;
     inline for (fields) |f| {
@@ -252,6 +275,13 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
     if (r2 != .done) return error.UnexpectedExtraRows;
 
     return out;
+}
+
+pub fn getByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) !?Owned(T) {
+    if (try getById(T, db, allocator, id)) |v| {
+        return wrapOwned(T, allocator, v);
+    }
+    return null;
 }
 
 /// Generic query: where_clause provided by caller (excluding “WHERE” prefix)
@@ -301,7 +331,8 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     const r = try st.step();
     if (r == .done) return null;
 
-    var out: T = undefined;
+    var out: T = std.mem.zeroes(T);
+    errdefer freeOwned(T, allocator, &out);
 
     comptime var col: usize = 0;
     inline for (fields) |f| {
@@ -314,6 +345,30 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     if (r2 != .done) return error.UnexpectedExtraRows;
 
     return out;
+}
+
+pub fn findOneOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) !?Owned(T) {
+    if (try findOne(T, P, db, allocator, where_clause, params)) |v| {
+        return wrapOwned(T, allocator, v);
+    }
+    return null;
+}
+
+pub fn Owned(comptime T: type) type {
+    return struct {
+        allocator: std.mem.Allocator,
+        value: T,
+
+        const Self = @This();
+
+        pub fn deinit(self: *Self) void {
+            freeOwned(T, self.allocator, &self.value);
+        }
+    };
+}
+
+fn wrapOwned(comptime T: type, allocator: std.mem.Allocator, v: T) Owned(T) {
+    return .{ .allocator = allocator, .value = v };
 }
 
 pub fn freeOwned(comptime T: type, allocator: std.mem.Allocator, value: *T) void {
@@ -389,4 +444,9 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
         .allocator = allocator,
         .done = false,
     };
+}
+
+pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) !RowsOwned(T) {
+    const r = try findMany(T, P, db, allocator, where_clause, params);
+    return .{ .rows = r };
 }

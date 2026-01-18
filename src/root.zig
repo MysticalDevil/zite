@@ -16,3 +16,5 @@ pub const types = @import("types.zig");
 pub const meta = @import("meta.zig");
 pub const sqlutil = @import("sqlutil.zig");
 pub const schema = @import("schema.zig");
+
+pub const Owned = mapper.Owned;

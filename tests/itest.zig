@@ -17,4 +17,5 @@ comptime {
     _ = @import("integration_findmany.zig");
     _ = @import("integration_expected_errors.zig");
     _ = @import("integration_errmsg.zig");
+    _ = @import("integration_owned.zig");
 }
