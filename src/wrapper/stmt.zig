@@ -1,6 +1,7 @@
 const std = @import("std");
 const raw = @import("../raw/sqlite3.zig");
 const types = @import("../types.zig");
+const diag = @import("diag.zig");
 
 const Db = @import("db.zig").Db;
 const db_ok = raw.SQLITE_OK;
@@ -24,8 +25,10 @@ pub const Stmt = struct {
             &stmt_opt,
             null,
         );
-        if (rc != db_ok or stmt_opt == null)
+        if (rc != db_ok or stmt_opt == null) {
+            diag.logSqlite(db, rc, "sqlite3_prepare_v2", sql);
             return error.SqlitePrepareFailed;
+        }
 
         return .{ .db = db, .stmt = stmt_opt.? };
     }
@@ -55,47 +58,68 @@ pub const Stmt = struct {
         return switch (rc) {
             raw.SQLITE_ROW => .row,
             raw.SQLITE_DONE => .done,
-            else => error.SqliteStepFailed,
+            else => blk: {
+                diag.logSqlite(self.db, rc, "sqlite3_step", null);
+                break :blk error.SqliteStepFailed;
+            },
         };
     }
 
     // ---------- bind (1-based index) ----------
     pub fn bindNull(self: *Self, idx: c_int) !void {
         const rc = raw.sqlite3_bind_null(self.stmt, idx);
-        if (rc != db_ok)
+        if (rc != db_ok) {
+            diag.logSqlite(self.db, rc, "sqlite3_bind_null", null);
+            diag.logBind("null", idx);
             return error.SqliteBindFailed;
+        }
     }
 
     pub fn bindInt(self: *Self, idx: c_int, value: i64) !void {
         const rc = raw.sqlite3_bind_int64(self.stmt, idx, value);
-        if (rc != db_ok)
+        if (rc != db_ok) {
+            diag.logSqlite(self.db, rc, "sqlite3_bind_int64", null);
+            diag.logBind("int64", idx);
             return error.SqliteBindFailed;
+        }
     }
 
     pub fn bindFloat(self: *Self, idx: c_int, value: f64) !void {
         const rc = raw.sqlite3_bind_double(self.stmt, idx, @as(f64, @floatCast(value)));
-        if (rc != db_ok)
+        if (rc != db_ok) {
+            diag.logSqlite(self.db, rc, "sqlite3_bind_double", null);
+            diag.logBind("double", idx);
             return error.SqliteBindFailed;
+        }
     }
 
     pub fn bindBool(self: *Self, idx: c_int, value: bool) !void {
         const rc = raw.sqlite3_bind_int(self.stmt, idx, if (value) 1 else 0);
-        if (rc != db_ok)
+        if (rc != db_ok) {
+            diag.logSqlite(self.db, rc, "sqlite3_bind_int", null);
+            diag.logBind("int", idx);
             return error.SqliteBindFailed;
+        }
     }
 
     pub fn bindText(self: *Self, idx: c_int, value: []const u8) !void {
         const n: c_int = @intCast(value.len);
         const rc = raw.sqlite3_bind_text(self.stmt, idx, value.ptr, n, raw.SQLITE_TRANSIENT);
-        if (rc != db_ok)
+        if (rc != db_ok) {
+            diag.logSqlite(self.db, rc, "sqlite3_bind_text", null);
+            diag.logBind("text", idx);
             return error.SqliteBindFailed;
+        }
     }
 
     pub fn bindBlob(self: *Self, idx: c_int, value: []const u8) !void {
         const n: c_int = @intCast(value.len);
         const rc = raw.sqlite3_bind_blob(self.stmt, idx, value.ptr, n, raw.SQLITE_TRANSIENT);
-        if (rc != db_ok)
+        if (rc != db_ok) {
+            diag.logSqlite(self.db, rc, "sqlite3_bind_blob", null);
+            diag.logBind("blob", idx);
             return error.SqliteBindFailed;
+        }
     }
 
     /// General Binding: Supports int/uint/bool/float/enum/[]const u8/[]u8/optional(?T)

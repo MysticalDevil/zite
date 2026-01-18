@@ -4,6 +4,7 @@ const wrapper = struct {
     pub const Db = @import("wrapper/db.zig").Db;
     pub const Stmt = @import("wrapper/stmt.zig").Stmt;
     pub const StepResult = @import("wrapper/stmt.zig").StepResult;
+    pub const diag = @import("wrapper/diag.zig");
 };
 
 pub const Db = wrapper.Db;

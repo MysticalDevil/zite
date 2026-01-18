@@ -4,6 +4,13 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const diag_enable_in_tests =
+        b.option(bool, "diag_enable_in_tests", "Enable sqlite diagnostics output during tests") orelse false;
+
+    const opts = b.addOptions();
+    opts.addOption(bool, "diag_enable_in_tests", diag_enable_in_tests);
+    const options_mod = opts.createModule();
+
     const orm = b.addModule("zite", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -11,6 +18,7 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
     orm.linkSystemLibrary("sqlite3", .{ .needed = true });
+    orm.addImport("build_options", options_mod);
 
     const unit_tests = b.addTest(.{ .root_module = orm, .use_llvm = true });
     const run_unit_tests = b.addRunArtifact(unit_tests);
@@ -28,6 +36,7 @@ pub fn build(b: *std.Build) void {
         },
     });
     it_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
+    it_mod.addImport("build_options", options_mod);
 
     const itests = b.addTest(.{ .root_module = it_mod, .use_llvm = true });
     const run_itests = b.addRunArtifact(itests);

@@ -1,3 +1,9 @@
+const std = @import("std");
+
+pub const std_options: std.Options = .{
+    .log_level = .err,
+};
+
 comptime {
     _ = @import("integration_create_table.zig");
     _ = @import("integration_prepare_step.zig");
@@ -9,4 +15,6 @@ comptime {
     _ = @import("integration_findone.zig");
     _ = @import("integration_float_time.zig");
     _ = @import("integration_findmany.zig");
+    _ = @import("integration_expected_errors.zig");
+    _ = @import("integration_errmsg.zig");
 }
