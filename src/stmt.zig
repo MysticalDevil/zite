@@ -1,9 +1,11 @@
 const std = @import("std");
 const db_mod = @import("db.zig");
+const root = @import("root.zig");
 
 pub const c = db_mod.c;
 pub const Db = db_mod.Db;
 const db_ok = c.SQLITE_OK;
+const types = root.types;
 
 pub const StepResult = enum { row, done };
 
@@ -106,6 +108,10 @@ pub const Stmt = struct {
     pub fn bindOne(self: *Self, idx: c_int, value: anytype) !void {
         const T = @TypeOf(value);
 
+        if (T == types.UnixMillis) {
+            return self.bindInt(idx, value.value);
+        }
+
         switch (@typeInfo(T)) {
             .optional => |_| {
                 if (value == null)
@@ -169,6 +175,10 @@ pub const Stmt = struct {
 
     pub fn colBool(self: *Self, col: c_int) bool {
         return c.sqlite3_column_int(self.stmt, col) != 0;
+    }
+
+    pub fn colDouble(self: *Stmt, col: c_int) f64 {
+        return c.sqlite3_column_double(self.stmt, col);
     }
 
     /// NOTE: The returned slice points to an internal SQLite buffer; it may become invalid after the next step/reset/finalize operation.

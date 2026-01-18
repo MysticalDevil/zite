@@ -3,6 +3,7 @@ const root = @import("root.zig");
 
 const Db = root.Db;
 const Stmt = root.Stmt;
+const types = root.types;
 
 const meta = @import("meta.zig");
 const sqlutil = @import("sqlutil.zig");
@@ -18,6 +19,10 @@ fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
 }
 
 fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: c_int) !FieldT {
+    if (FieldT == types.UnixMillis) {
+        return .{ .value = st.colInt(col) };
+    }
+
     switch (@typeInfo(FieldT)) {
         .optional => |o| {
             if (st.colIsNull(col)) return null;
@@ -29,6 +34,10 @@ fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col
         .int, .comptime_int => {
             const v = st.colInt(col);
             return @as(FieldT, @intCast(v));
+        },
+        .float, .comptime_float => {
+            const v = st.colDouble(col);
+            return @as(FieldT, @floatCast(v));
         },
         .@"enum" => {
             const v = st.colInt(col);
