@@ -391,7 +391,7 @@ fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: any
         .pointer => |p| {
             if (p.size == .slice and p.child == u8) {
                 const s = field_ptr.*;
-                if (s.len != 0) allocator.free(@constCast(s));
+                allocator.free(@constCast(s));
             }
         },
         else => {},

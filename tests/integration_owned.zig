@@ -52,3 +52,28 @@ test "owned: getByIdOwned and findManyOwned free via deinit" {
     }
     try std.testing.expectEqual(@as(usize, 2), cnt);
 }
+
+test "owned: empty text is released without leaks" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const chk = gpa.deinit();
+        std.testing.expect(chk == .ok) catch unreachable;
+    }
+    const a = gpa.allocator();
+
+    var db = try orm.Db.open(a, ":memory:");
+    defer db.deinit();
+
+    const ddl = try orm.schema.createTableSqlFromMeta(a, User);
+    defer a.free(ddl);
+    try db.exec(ddl);
+
+    const id = try orm.mapper.insert(User, &db, .{ .id = 0, .name = "", .age = null });
+    if (try orm.mapper.getByIdOwned(User, &db, a, id)) |owned| {
+        var o = owned;
+        defer o.deinit();
+        try std.testing.expectEqual(@as(usize, 0), o.value.name.len);
+    } else {
+        return error.TestExpectedRow;
+    }
+}
