@@ -15,7 +15,7 @@ fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     inline for (ti.@"struct".fields) |f| {
         if (comptime meta.isPk(f.name, m.primary_key)) return f.type;
     }
-    @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " + m.primary_key);
+    @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " ++ m.primary_key);
 }
 
 fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: c_int) !FieldT {
