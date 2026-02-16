@@ -15,11 +15,12 @@ pub const Stmt = struct {
     const Self = @This();
 
     pub fn init(db: *Db, sql: []const u8) !Self {
+        const db_handle = db.handle orelse return error.DbClosed;
         var stmt_opt: ?*raw.sqlite3_stmt = null;
 
         const n: c_int = @intCast(sql.len);
         const rc = raw.sqlite3_prepare_v2(
-            db.handle,
+            db_handle,
             sql.ptr,
             n,
             &stmt_opt,

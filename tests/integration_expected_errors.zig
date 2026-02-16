@@ -66,3 +66,16 @@ test "expected error: Stmt.step SQL runtime error returns SqliteStepFailed" {
         try std.testing.expectError(error.SqliteStepFailed, st2.step());
     }
 }
+
+test "expected error: operations after close return DbClosed" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try orm.Db.open(a, ":memory:");
+    db.close();
+    db.close();
+
+    try std.testing.expectError(error.DbClosed, db.exec("SELECT 1;"));
+    try std.testing.expectError(error.DbClosed, orm.Stmt.init(&db, "SELECT 1;"));
+}
