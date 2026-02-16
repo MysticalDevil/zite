@@ -3,7 +3,13 @@ const meta = @import("meta.zig");
 
 pub fn writeIdent(w: std.io.AnyWriter, name: []const u8) !void {
     try w.writeByte('"');
-    try w.writeAll(name);
+    for (name) |ch| {
+        if (ch == '"') {
+            try w.writeAll("\"\"");
+        } else {
+            try w.writeByte(ch);
+        }
+    }
     try w.writeByte('"');
 }
 
@@ -47,4 +53,18 @@ pub fn writeUpdateSetClause(w: std.io.AnyWriter, comptime T: type, comptime m: m
         try w.print("{}", .{set_i + 1});
         set_i += 1;
     }
+}
+
+test "writeIdent escapes embedded double quotes" {
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(std.testing.allocator);
+
+    const w0 = buf.writer(std.testing.allocator);
+    const w = w0.any();
+
+    try writeIdent(w, "my\"table");
+    const out = try buf.toOwnedSlice(std.testing.allocator);
+    defer std.testing.allocator.free(out);
+
+    try std.testing.expectEqualStrings("\"my\"\"table\"", out);
 }
