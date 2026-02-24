@@ -1,5 +1,6 @@
 const std = @import("std");
 const orm = @import("zite");
+const helpers = @import("helpers.zig");
 
 const Note = struct {
     id: i64,
@@ -17,12 +18,10 @@ test "mapper: text round trip with types.OwnedText" {
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try helpers.openMemoryDb(a);
     defer db.deinit();
 
-    const ddl = try orm.schema.createTableSqlFromMeta(a, Note);
-    defer a.free(ddl);
-    try db.exec(ddl);
+    try helpers.createTableFromMeta(a, &db, Note);
 
     const payload = "hello text";
     var body = try orm.types.OwnedText.fromConst(a, payload);

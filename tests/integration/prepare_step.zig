@@ -1,5 +1,6 @@
 const std = @import("std");
 const orm = @import("zite");
+const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
@@ -14,13 +15,11 @@ test "prepare_v2 + step: verify users table exists via sqlite_master" {
     const a = gpa.allocator();
 
     // Step 1: memory db
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try helpers.openMemoryDb(a);
     defer db.deinit();
 
     // Step 2: Create table (Use schema generator + exec to preform a DDL operation)
-    const ddl = try orm.schema.createTableSql(a, User, .{ .table_name = "users" });
-    defer a.free(ddl);
-    try db.exec(ddl);
+    try helpers.createTable(a, &db, User, "users");
 
     // Step 3: Compile the query statement using prepare_v2 (to avoid the sqlite3_exec callback)
     const q = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1;";

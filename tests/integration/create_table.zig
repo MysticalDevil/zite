@@ -1,5 +1,6 @@
 const std = @import("std");
 const orm = @import("zite");
+const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
@@ -13,12 +14,10 @@ test "create table from struct and verify sqlite_master" {
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try helpers.openMemoryDb(a);
     defer db.deinit();
 
-    const sql = try orm.schema.createTableSql(a, User, .{ .table_name = "users" });
-    defer a.free(sql);
-    try db.exec(sql);
+    try helpers.createTable(a, &db, User, "users");
 
     const query = "SELECT name FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1;";
     const qz = try a.dupeZ(u8, query);

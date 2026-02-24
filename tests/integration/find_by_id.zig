@@ -1,5 +1,6 @@
 const std = @import("std");
 const orm = @import("zite");
+const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
@@ -23,12 +24,10 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try helpers.openMemoryDb(a);
     defer db.deinit();
 
-    const ddl = try orm.schema.createTableSqlFromMeta(a, User);
-    defer a.free(ddl);
-    try db.exec(ddl);
+    try helpers.createTableFromMeta(a, &db, User);
 
     var name1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);

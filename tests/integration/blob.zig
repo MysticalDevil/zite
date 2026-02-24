@@ -1,5 +1,6 @@
 const std = @import("std");
 const orm = @import("zite");
+const helpers = @import("helpers.zig");
 
 const Doc = struct {
     id: i64,
@@ -17,12 +18,10 @@ test "mapper: blob round trip" {
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try helpers.openMemoryDb(a);
     defer db.deinit();
 
-    const ddl = try orm.schema.createTableSqlFromMeta(a, Doc);
-    defer a.free(ddl);
-    try db.exec(ddl);
+    try helpers.createTableFromMeta(a, &db, Doc);
 
     const payload = [_]u8{ 0, 1, 2, 3, 4, 5 };
     var data = try orm.types.OwnedBlob.fromConst(a, payload[0..]);
