@@ -141,6 +141,7 @@ specific errors (busy, constraint, io, etc.) where possible.
 - `zig build test` runs unit tests.
 - `zig build itest` runs integration tests.
 - `zig build itest -Ddiag_enable_in_tests=true` enables sqlite diagnostics.
+- Tests use a simple runner (`tests/test_runner_simple.zig`) to avoid the server protocol.
 - `scripts/itest_direct.sh` runs integration tests directly (useful on Zig 0.16-dev when the build test runner is unstable).
 
 ## Examples
