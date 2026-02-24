@@ -62,8 +62,10 @@ pub const Stmt = struct {
 
     pub fn reset(self: *Self) errors.ZiteError!void {
         const rc = raw.stmt.reset(self.stmt);
-        if (rc != db_ok)
+        if (rc != db_ok) {
+            diag.logSqlite(self.db, rc, "sqlite3_reset", null);
             return sqlite_errors.mapSqliteRc(rc, error.SqliteResetFailed);
+        }
     }
 
     /// Steps the statement. Returns .row for a row, .done when complete.
