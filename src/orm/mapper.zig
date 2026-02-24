@@ -83,6 +83,11 @@ pub fn Rows(comptime T: type) type {
         pub fn next(self: *Self) errors.ZiteError!?T {
             if (self.done) return null;
 
+            errdefer {
+                self.st.deinit();
+                self.done = true;
+            }
+
             const r = try self.st.step();
             if (r == .done) {
                 self.st.deinit();

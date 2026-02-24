@@ -13,6 +13,7 @@ pub const StepResult = enum { row, done };
 pub const Stmt = struct {
     db: *Db,
     stmt: raw.StmtHandle,
+    finalized: bool = false,
 
     const Self = @This();
 
@@ -31,11 +32,15 @@ pub const Stmt = struct {
             return sqlite_errors.mapSqliteRc(rc, error.SqlitePrepareFailed);
         }
 
+        db.registerStmt();
         return .{ .db = db, .stmt = stmt_opt.? };
     }
 
     pub fn finalize(self: *Self) void {
+        if (self.finalized) return;
         _ = raw.stmt.finalize(self.stmt);
+        self.finalized = true;
+        self.db.unregisterStmt();
     }
 
     pub fn deinit(self: *Self) void {

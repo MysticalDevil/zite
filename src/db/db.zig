@@ -7,6 +7,7 @@ const sqlite_errors = @import("sqlite_errors.zig");
 pub const Db = struct {
     allocator: std.mem.Allocator,
     handle: raw.DbHandle,
+    active_stmts: i32 = 0,
 
     const Self = @This();
 
@@ -31,6 +32,9 @@ pub const Db = struct {
     }
 
     pub fn close(self: *Self) void {
+        if (self.active_stmts != 0) {
+            std.log.warn("sqlite warning what=close_with_active_statements count={}", .{self.active_stmts});
+        }
         const rc = raw.db.closeV2(self.handle);
         if (rc != raw.SQLITE_OK) {
             diag.logSqlite(self, rc, "sqlite3_close_v2", null);
@@ -65,5 +69,17 @@ pub const Db = struct {
 
     pub fn changes(self: *Self) i32 {
         return raw.db.changes(self.handle);
+    }
+
+    pub fn registerStmt(self: *Self) void {
+        self.active_stmts += 1;
+    }
+
+    pub fn unregisterStmt(self: *Self) void {
+        self.active_stmts -= 1;
+        if (self.active_stmts < 0) {
+            std.log.warn("sqlite warning what=stmt_count_underflow", .{});
+            self.active_stmts = 0;
+        }
     }
 };
