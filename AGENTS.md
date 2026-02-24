@@ -31,6 +31,7 @@
 - Tests are written with `zig test` via `zig build test` and `zig build itest`.
 - Integration tests live in `tests/integration/*.zig` and are pulled into `tests/itest.zig`.
 - Name new integration tests as `tests/integration/<feature>.zig` and wire them into `tests/itest.zig`.
+- If Zig 0.16-dev test runner is unstable, use `scripts/itest_direct.sh`.
 
 ## Commit & Pull Request Guidelines
 - Commit messages follow a conventional format seen in history:
