@@ -74,26 +74,24 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
     var list: std.ArrayList(u8) = .empty;
     errdefer list.deinit(allocator);
 
-    const w = list.writer(allocator);
+    try list.appendSlice(allocator, "CREATE TABLE ");
+    if (opts.if_not_exists) try list.appendSlice(allocator, "IF NOT EXISTS ");
 
-    try w.writeAll("CREATE TABLE ");
-    if (opts.if_not_exists) try w.writeAll("IF NOT EXISTS ");
+    try sqlutil.writeIdent(&list, allocator, opts.table_name);
 
-    try sqlutil.writeIdent(w, opts.table_name);
-
-    try w.writeAll(" (\n");
+    try list.appendSlice(allocator, " (\n");
 
     const fields = info.@"struct".fields;
 
     inline for (fields, 0..) |f, i| {
-        try w.writeAll("  ");
-        try sqlutil.writeIdent(w, f.name);
-        try w.writeByte(' ');
-        try w.writeAll(sqliteDeclaredType(f.type));
+        try list.appendSlice(allocator, "  ");
+        try sqlutil.writeIdent(&list, allocator, f.name);
+        try list.append(allocator, ' ');
+        try list.appendSlice(allocator, sqliteDeclaredType(f.type));
 
         const pk = isPrimaryKeyField(f.name, opts);
         if (pk) {
-            try w.writeAll(" PRIMARY KEY");
+            try list.appendSlice(allocator, " PRIMARY KEY");
 
             const base = unwrapOptionalType(f.type);
             const is_int = switch (@typeInfo(base)) {
@@ -101,20 +99,20 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
                 else => false,
             };
             if (opts.autoincrement and is_int) {
-                try w.writeAll(" AUTOINCREMENT");
+                try list.appendSlice(allocator, " AUTOINCREMENT");
             }
         } else if (opts.not_null_by_default and !isOptional(f.type)) {
-            try w.writeAll(" NOT NULL");
+            try list.appendSlice(allocator, " NOT NULL");
         }
 
         if (i + 1 != fields.len) {
-            try w.writeAll(",\n");
+            try list.appendSlice(allocator, ",\n");
         } else {
-            try w.writeByte('\n');
+            try list.append(allocator, '\n');
         }
     }
 
-    try w.writeAll(");");
+    try list.appendSlice(allocator, ");");
 
     return try list.toOwnedSlice(allocator);
 }
