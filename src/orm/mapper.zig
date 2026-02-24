@@ -22,6 +22,10 @@ fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col
     if (FieldT == types.UnixMillis) {
         return .{ .value = st.colInt(col) };
     }
+    if (FieldT == types.Blob) {
+        const owned = (try st.colBlobOwned(allocator, col)) orelse return error.UnexpectedNull;
+        return .{ .value = owned };
+    }
 
     switch (@typeInfo(FieldT)) {
         .optional => |o| {
@@ -382,6 +386,11 @@ pub fn freeOwned(comptime T: type, allocator: std.mem.Allocator, value: *T) void
 }
 
 fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: anytype) void {
+    if (FieldT == types.Blob) {
+        const s = field_ptr.value;
+        if (s.len != 0) allocator.free(s);
+        return;
+    }
     switch (@typeInfo(FieldT)) {
         .optional => |o| {
             if (field_ptr.*) |*v| {
@@ -436,6 +445,7 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
     defer db.allocator.free(sql);
 
     var st = try Stmt.init(db, sql);
+    errdefer st.deinit();
 
     try st.bindAll(params);
 

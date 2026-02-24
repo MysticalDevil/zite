@@ -1,4 +1,5 @@
 comptime {
+    _ = @import("blob.zig");
     _ = @import("create_table.zig");
     _ = @import("prepare_step.zig");
     _ = @import("stmt_prepare_step.zig");

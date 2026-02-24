@@ -129,6 +129,9 @@ pub const Stmt = struct {
         if (T == types.UnixMillis) {
             return self.bindInt(idx, value.value);
         }
+        if (T == types.Blob) {
+            return self.bindBlob(idx, value.value);
+        }
 
         switch (@typeInfo(T)) {
             .optional => |_| {
@@ -226,6 +229,19 @@ pub const Stmt = struct {
 
     pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: c_int) !?[]u8 {
         const p = raw.sqlite3_column_text(self.stmt, col);
+        if (p == null) return null;
+
+        const n = raw.sqlite3_column_bytes(self.stmt, col);
+        const len: usize = @intCast(n);
+
+        const src: [*]const u8 = @ptrCast(p);
+        const out = try a.alloc(u8, len);
+        if (len != 0) std.mem.copyForwards(u8, out, src[0..len]);
+        return out;
+    }
+
+    pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: c_int) !?[]u8 {
+        const p = raw.sqlite3_column_blob(self.stmt, col);
         if (p == null) return null;
 
         const n = raw.sqlite3_column_bytes(self.stmt, col);
