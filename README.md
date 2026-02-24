@@ -37,6 +37,12 @@ zite.linkSystemLibrary("sqlite3", .{ .needed = true });
 | Schema | `zite.schema.createTableSqlFromMeta` | CREATE TABLE from `Meta`. |
 | Errors | `zite.errors.ZiteError` | Unified error set. |
 
+## API Stability
+
+- Stable: `Db`, `Stmt`, `mapper`, `schema`, `types`, `errors`.
+- Advanced/Low-level: `raw`, `sqlutil`, `meta`. These are exposed for power users
+  but may change when internals evolve.
+
 ## Quick Start (ORM)
 
 ```zig
