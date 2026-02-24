@@ -4,8 +4,11 @@ const diag = @import("diag.zig");
 const errors = @import("../core/errors.zig");
 const sqlite_errors = @import("sqlite_errors.zig");
 
+/// Database connection wrapper around sqlite3.
 pub const Db = struct {
+    /// Allocator used for SQL strings and owned data.
     allocator: std.mem.Allocator,
+    /// Opaque sqlite3 handle.
     handle: raw.DbHandle,
     /// Tracks active statements created from this Db to warn on close.
     active_stmts: i32 = 0,

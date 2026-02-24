@@ -10,11 +10,13 @@ pub const sqlite3_stmt = c.sqlite3_stmt;
 
 /// Typed wrapper for sqlite3*.
 pub const DbHandle = struct {
+    /// Opaque sqlite3 pointer.
     ptr: *sqlite3,
 };
 
 /// Typed wrapper for sqlite3_stmt*.
 pub const StmtHandle = struct {
+    /// Opaque sqlite3_stmt pointer.
     ptr: *sqlite3_stmt,
 };
 

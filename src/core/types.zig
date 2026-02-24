@@ -1,10 +1,12 @@
 const std = @import("std");
 
+/// Unix timestamp in milliseconds.
 pub const UnixMillis = struct {
     /// Milliseconds since Unix epoch.
     value: i64,
 };
 
+/// Owned UTF-8 text wrapper.
 pub const Text = struct {
     /// Owned UTF-8 text buffer. Caller owns and must free `value`.
     value: []u8,
@@ -16,6 +18,7 @@ pub const Text = struct {
     }
 };
 
+/// Owned binary blob wrapper.
 pub const Blob = struct {
     /// Owned binary buffer. Caller owns and must free `value`.
     value: []u8,

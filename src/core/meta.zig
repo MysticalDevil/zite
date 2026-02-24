@@ -1,9 +1,13 @@
 const std = @import("std");
 
 /// Declarative metadata for ORM mapping.
+/// Declarative metadata for ORM mapping.
 pub const Meta = struct {
+    /// Table name.
     table: []const u8,
+    /// Primary key column name.
     primary_key: []const u8 = "id",
+    /// When true, omit PK from INSERTs (for AUTOINCREMENT).
     skip_primary_key_on_insert: bool = true,
 };
 

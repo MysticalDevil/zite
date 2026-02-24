@@ -11,8 +11,11 @@ const db_ok = raw.SQLITE_OK;
 /// Result of stepping a statement.
 pub const StepResult = enum { row, done };
 
+/// Prepared statement wrapper for sqlite3_stmt.
 pub const Stmt = struct {
+    /// Back-reference to the owning Db (for diagnostics and tracking).
     db: *Db,
+    /// Opaque sqlite3 statement handle.
     stmt: raw.StmtHandle,
     /// Prevents double-finalize and enables Db tracking.
     finalized: bool = false,

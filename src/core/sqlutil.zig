@@ -5,8 +5,11 @@ const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList(u8);
 
+/// Helper for building SQL strings with fewer reallocations.
 pub const SqlBuilder = struct {
+    /// Target buffer to append into.
     list: *ArrayList,
+    /// Allocator used by the underlying ArrayList.
     gpa: Allocator,
 
     /// Initializes a builder that appends into the provided ArrayList.

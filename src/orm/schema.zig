@@ -6,6 +6,7 @@ const sqlutil = internal.sqlutil;
 const types = internal.types;
 const errors = internal.errors;
 
+/// Options that control CREATE TABLE generation.
 pub const CreateTableOptions = struct {
     /// Table name used in CREATE TABLE.
     table_name: []const u8,
