@@ -20,28 +20,19 @@ test "create table from struct and verify sqlite_master" {
     defer a.free(sql);
     try db.exec(sql);
 
-    var found = false;
-
-    const query = "SELECT name FROM sqlite_master WHERE type='table' AND name='users';";
+    const query = "SELECT name FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1;";
     const qz = try a.dupeZ(u8, query);
     defer a.free(qz);
 
-    const Callback = struct {
-        pub fn cb(userdata: ?*anyopaque, argc: c_int, argv: [*c][*c]u8, col: [*c][*c]u8) callconv(.c) c_int {
-            _ = argc;
-            _ = argv;
-            _ = col;
+    var stmt_opt: ?orm.raw.StmtHandle = null;
+    const rc_prep = orm.raw.stmt.prepareV2(db.handle, qz.ptr, -1, &stmt_opt);
+    try std.testing.expectEqual(orm.raw.SQLITE_OK, rc_prep);
+    const stmt = stmt_opt.?;
+    defer _ = orm.raw.stmt.finalize(stmt);
 
-            const p: *bool = @ptrCast(@alignCast(userdata.?));
-            p.* = true;
-            return 0;
-        }
-    };
+    const rc_step = orm.raw.stmt.step(stmt);
+    try std.testing.expectEqual(orm.raw.SQLITE_ROW, rc_step);
 
-    var errmsg: [*c]u8 = null;
-    defer if (errmsg != null) orm.raw.sqlite3_free(errmsg);
-
-    const rc = orm.raw.sqlite3_exec(db.handle.ptr, qz.ptr, Callback.cb, &found, &errmsg);
-    try std.testing.expectEqual(orm.raw.SQLITE_OK, rc);
-    try std.testing.expect(found);
+    const name_ptr = orm.raw.stmt.columnText(stmt, 0);
+    try std.testing.expect(name_ptr != null);
 }
