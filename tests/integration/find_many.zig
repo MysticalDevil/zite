@@ -26,12 +26,12 @@ test "mapper.findMany: ioterate rows and free owned fields" {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    const name1 = try orm.types.OwnedText.fromConst(a, "alice");
-    defer a.free(name1.value);
-    const name2 = try orm.types.OwnedText.fromConst(a, "bob");
-    defer a.free(name2.value);
-    const name3 = try orm.types.OwnedText.fromConst(a, "carol");
-    defer a.free(name3.value);
+    var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer name1.deinit(a);
+    var name2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer name2.deinit(a);
+    var name3 = try orm.types.OwnedText.fromConst(a, "carol");
+    defer name3.deinit(a);
     _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name1, .age = null, .created_at = 1 });
     _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name2, .age = 20, .created_at = 2 });
     _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name3, .age = 30, .created_at = 3 });

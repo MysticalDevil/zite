@@ -15,7 +15,7 @@ pub fn main() !void {
     defer insert.deinit();
 
     var body = try OwnedText.fromConst(gpa, "hello");
-    defer gpa.free(body.value);
+    defer body.deinit(gpa);
 
     try insert.bindAll(.{ 1, body });
     _ = try insert.step();

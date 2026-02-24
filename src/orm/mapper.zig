@@ -425,13 +425,11 @@ pub fn freeOwnedRow(comptime T: type, allocator: std.mem.Allocator, value: *T) v
 
 fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: anytype) void {
     if (FieldT == types.OwnedText) {
-        const s = field_ptr.value;
-        if (s.len != 0) allocator.free(s);
+        field_ptr.deinit(allocator);
         return;
     }
     if (FieldT == types.OwnedBlob) {
-        const s = field_ptr.value;
-        if (s.len != 0) allocator.free(s);
+        field_ptr.deinit(allocator);
         return;
     }
     switch (@typeInfo(FieldT)) {

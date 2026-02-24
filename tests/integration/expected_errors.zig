@@ -55,8 +55,8 @@ test "expected error: Stmt.step SQL runtime error returns SqliteConstraint" {
     {
         var st1 = try orm.Stmt.init(&db, "INSERT INTO users(name) VALUES (?1);");
         defer st1.deinit();
-        const name1 = try orm.types.OwnedText.fromConst(a, "alice");
-        defer a.free(name1.value);
+        var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+        defer name1.deinit(a);
         try st1.bindOne(1, name1);
         try std.testing.expectEqual(orm.StepResult.done, try st1.step());
     }
@@ -64,8 +64,8 @@ test "expected error: Stmt.step SQL runtime error returns SqliteConstraint" {
     {
         var st2 = try orm.Stmt.init(&db, "INSERT INTO users(name) VALUES (?1);");
         defer st2.deinit();
-        const name2 = try orm.types.OwnedText.fromConst(a, "alice");
-        defer a.free(name2.value);
+        var name2 = try orm.types.OwnedText.fromConst(a, "alice");
+        defer name2.deinit(a);
         try st2.bindOne(1, name2);
         try std.testing.expectError(error.SqliteConstraint, st2.step());
     }

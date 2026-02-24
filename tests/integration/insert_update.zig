@@ -24,8 +24,8 @@ test "mapper.insert + mapper.update: roundtrip" {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    const name1 = try orm.types.OwnedText.fromConst(a, "aice");
-    defer a.free(name1.value);
+    var name1 = try orm.types.OwnedText.fromConst(a, "aice");
+    defer name1.deinit(a);
     var u = User{
         .id = 0,
         .name = name1,
@@ -37,8 +37,8 @@ test "mapper.insert + mapper.update: roundtrip" {
     try std.testing.expect(new_id > 0);
 
     u.id = new_id;
-    const name2 = try orm.types.OwnedText.fromConst(a, "alice2");
-    defer a.free(name2.value);
+    var name2 = try orm.types.OwnedText.fromConst(a, "alice2");
+    defer name2.deinit(a);
     u.name = name2;
     u.age = 42;
 

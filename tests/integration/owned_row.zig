@@ -28,10 +28,10 @@ test "owned: findByIdOwned and findManyOwned free via deinit" {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    const name1 = try orm.types.OwnedText.fromConst(a, "alice");
-    defer a.free(name1.value);
-    const name2 = try orm.types.OwnedText.fromConst(a, "bob");
-    defer a.free(name2.value);
+    var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer name1.deinit(a);
+    var name2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer name2.deinit(a);
     const id1 = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name1, .age = 10 });
     _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name2, .age = 20 });
 

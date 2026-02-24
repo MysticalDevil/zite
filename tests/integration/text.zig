@@ -25,8 +25,8 @@ test "mapper: text round trip with types.OwnedText" {
     try db.exec(ddl);
 
     const payload = "hello text";
-    const body = try orm.types.OwnedText.fromConst(a, payload);
-    defer a.free(body.value);
+    var body = try orm.types.OwnedText.fromConst(a, payload);
+    defer body.deinit(a);
     _ = try orm.mapper.insert(Note, &db, .{
         .id = 0,
         .body = body,

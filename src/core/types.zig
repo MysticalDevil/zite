@@ -16,6 +16,12 @@ pub const OwnedText = struct {
         const out = try a.dupe(u8, s);
         return .{ .value = out };
     }
+
+    /// Frees the owned buffer.
+    pub fn deinit(self: *OwnedText, a: std.mem.Allocator) void {
+        if (self.value.len != 0) a.free(self.value);
+        self.value = &[_]u8{};
+    }
 };
 
 /// Owned binary blob wrapper.
@@ -27,5 +33,11 @@ pub const OwnedBlob = struct {
     pub fn fromConst(a: std.mem.Allocator, s: []const u8) !OwnedBlob {
         const out = try a.dupe(u8, s);
         return .{ .value = out };
+    }
+
+    /// Frees the owned buffer.
+    pub fn deinit(self: *OwnedBlob, a: std.mem.Allocator) void {
+        if (self.value.len != 0) a.free(self.value);
+        self.value = &[_]u8{};
     }
 };

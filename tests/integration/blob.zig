@@ -25,8 +25,8 @@ test "mapper: blob round trip" {
     try db.exec(ddl);
 
     const payload = [_]u8{ 0, 1, 2, 3, 4, 5 };
-    const data = try orm.types.OwnedBlob.fromConst(a, payload[0..]);
-    defer a.free(data.value);
+    var data = try orm.types.OwnedBlob.fromConst(a, payload[0..]);
+    defer data.deinit(a);
     _ = try orm.mapper.insert(Doc, &db, .{
         .id = 0,
         .data = data,

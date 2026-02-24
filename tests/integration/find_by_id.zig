@@ -15,7 +15,7 @@ const User = struct {
 };
 
 fn freeUser(a: std.mem.Allocator, u: *User) void {
-    a.free(u.name.value);
+    u.name.deinit(a);
 }
 
 test "mapper.findById: insert -> findById -> update -> findById" {
@@ -30,8 +30,8 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    const name1 = try orm.types.OwnedText.fromConst(a, "alice");
-    defer a.free(name1.value);
+    var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer name1.deinit(a);
     var u = User{
         .id = 0,
         .name = name1,
@@ -51,8 +51,8 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     try std.testing.expectEqual(@as(i64, 123), got1.created_at);
 
     u.id = new_id;
-    const name2 = try orm.types.OwnedText.fromConst(a, "alice2");
-    defer a.free(name2.value);
+    var name2 = try orm.types.OwnedText.fromConst(a, "alice2");
+    defer name2.deinit(a);
     u.name = name2;
     u.age = 42;
 
