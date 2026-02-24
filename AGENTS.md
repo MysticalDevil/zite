@@ -2,8 +2,12 @@
 
 ## Project Structure & Module Organization
 - `src/` holds the library code. Entry point is `src/root.zig`.
-- `src/raw/` contains low-level sqlite3 bindings; `src/wrapper/` contains higher-level wrappers.
-- `tests/` contains integration tests. `tests/itest.zig` is the test entry module and includes files like `integration_*.zig`.
+- `src/raw/` contains low-level sqlite3 bindings.
+- `src/db/` contains the DB and statement wrappers.
+- `src/core/` contains shared types, meta, and SQL utilities.
+- `src/orm/` contains mapper and schema helpers.
+- `tests/` contains integration tests. `tests/itest.zig` is the test entry module and includes files from `tests/integration/`.
+- `examples/` contains runnable usage samples.
 
 ## Build, Test, and Development Commands
 - `zig build` builds the library with default settings.
@@ -16,13 +20,13 @@
 - Follow Zig naming conventions:
   - Types/structs: `PascalCase`
   - Functions/vars: `lower_snake_case`
-  - Files: `lower_snake_case.zig` (e.g., `integration_findone.zig`)
-- Keep modules focused: raw bindings in `src/raw/`, higher-level APIs in `src/wrapper/`.
+  - Files: `lower_snake_case.zig` (e.g., `find_one.zig`)
+- Keep modules focused: raw bindings in `src/raw/`, ORM in `src/orm/`, DB wrappers in `src/db/`.
 
 ## Testing Guidelines
 - Tests are written with `zig test` via `zig build test` and `zig build itest`.
-- Integration tests live in `tests/integration_*.zig` and are pulled into `tests/itest.zig`.
-- Name new integration tests as `integration_<feature>.zig` and wire them into `tests/itest.zig`.
+- Integration tests live in `tests/integration/*.zig` and are pulled into `tests/itest.zig`.
+- Name new integration tests as `tests/integration/<feature>.zig` and wire them into `tests/itest.zig`.
 
 ## Commit & Pull Request Guidelines
 - Commit messages follow a conventional format seen in history:
@@ -36,3 +40,7 @@
 ## Dependencies & Local Setup
 - Requires system `sqlite3` headers and library (linked via `linkSystemLibrary("sqlite3")` in `build.zig`).
 - If sqlite diagnostics are needed for debugging, use `-Ddiag_enable_in_tests=true` in test runs.
+
+## Examples
+- `examples/orm_basic.zig` shows the ORM mapping flow with `OwnedText/OwnedBlob`.
+- `examples/stmt_basic.zig` shows direct statement usage.
