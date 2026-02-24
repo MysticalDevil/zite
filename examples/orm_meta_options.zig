@@ -1,4 +1,5 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const zite = @import("zite");
 
 const OwnedText = zite.types.OwnedText;
@@ -27,22 +28,23 @@ const User = struct {
 
 pub fn main() !void {
     const gpa = std.heap.page_allocator;
+    const a: Allocator = gpa;
 
-    var db = try zite.Db.open(gpa, ":memory:");
+    var db = try zite.Db.open(a, ":memory:");
     defer db.deinit();
 
-    const ddl = try zite.schema.createTableSqlFromMeta(gpa, User);
-    defer gpa.free(ddl);
+    const ddl = try zite.schema.createTableSqlFromMeta(a, User);
+    defer a.free(ddl);
     try db.exec(ddl);
 
     var user = User{
         .id = 0,
-        .name = try OwnedText.fromConst(gpa, "Alice"),
-        .email = try OwnedText.fromConst(gpa, "alice@example.com"),
+        .name = try OwnedText.fromConst(a, "Alice"),
+        .email = try OwnedText.fromConst(a, "alice@example.com"),
         .created_at = .{ .value = 1700000000000 },
-        .transient_field = try OwnedText.fromConst(gpa, "skip"),
+        .transient_field = try OwnedText.fromConst(a, "skip"),
     };
-    defer zite.mapper.freeOwnedRow(User, gpa, &user);
+    defer zite.mapper.freeOwnedRow(User, a, &user);
 
     _ = try zite.mapper.insert(User, &db, user);
 }

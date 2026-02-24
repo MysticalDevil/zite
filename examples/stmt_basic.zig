@@ -1,10 +1,12 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const zite = @import("zite");
 
 pub fn main() !void {
     const gpa = std.heap.page_allocator;
+    const a: Allocator = gpa;
 
-    var db = try zite.Db.open(gpa, ":memory:");
+    var db = try zite.Db.open(a, ":memory:");
     defer db.deinit();
 
     try db.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT);");
@@ -20,8 +22,8 @@ pub fn main() !void {
     try query.bindInt(1, 1);
 
     if (try query.step() == .row) {
-        if (try query.colTextOwned(gpa, 0)) |body| {
-            defer gpa.free(body);
+        if (try query.colTextOwned(a, 0)) |body| {
+            defer a.free(body);
             std.debug.print("body={s}\n", .{body});
         }
     }
