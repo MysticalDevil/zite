@@ -67,6 +67,7 @@ pub fn Rows(comptime T: type) type {
         done: bool = false,
 
         const Self = @This();
+        const m = meta.getMeta(T);
 
         /// Finalizes the underlying statement if iteration is not complete.
         pub fn deinit(self: *Self) void {
@@ -101,6 +102,7 @@ pub fn Rows(comptime T: type) type {
 
             comptime var col: usize = 0;
             inline for (fields) |f| {
+                if (comptime meta.isSkipped(f.name, m)) continue;
                 const v = try readValue(f.type, &self.st, self.allocator, @as(i32, @intCast(col)));
                 @field(out, f.name) = v;
                 col += 1;
@@ -137,6 +139,11 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     if (ti != .@"struct") @compileError("insert expects a struct type");
 
     const m = comptime meta.getMeta(T);
+    comptime {
+        if (meta.isSkipped(m.primary_key, m)) {
+            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
+        }
+    }
     const ncols = comptime meta.insertableCount(T, m);
     if (ncols == 0) return error.NoInsertableFields;
 
@@ -163,6 +170,7 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     var bind_i: i32 = 1;
 
     inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
         const skip = comptime (m.skip_primary_key_on_insert and meta.isPk(f.name, m.primary_key));
         if (skip) continue;
 
@@ -182,6 +190,11 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     if (ti != .@"struct") @compileError("update expects a struct type");
 
     const m = comptime meta.getMeta(T);
+    comptime {
+        if (meta.isSkipped(m.primary_key, m)) {
+            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
+        }
+    }
 
     comptime {
         if (!meta.hasPrimaryKeyField(T, m)) {
@@ -203,7 +216,7 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     try b.updateSetClause(T, m);
 
     try b.lit(" WHERE ");
-    try b.ident(m.primary_key);
+    try b.ident(meta.pkColumnName(m));
     try b.lit("=?");
     try b.print("{}", .{set_count + 1});
     try b.lit(";");
@@ -218,6 +231,7 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     var bind_i: i32 = 1;
 
     inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
         if (comptime meta.isPk(f.name, m.primary_key)) continue;
         try st.bindOne(bind_i, @field(entity, f.name));
         bind_i += 1;
@@ -244,6 +258,11 @@ pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkF
     if (ti != .@"struct") @compileError("findById expects a struct type");
 
     const m = comptime meta.getMeta(T);
+    comptime {
+        if (meta.isSkipped(m.primary_key, m)) {
+            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
+        }
+    }
     const fields = ti.@"struct".fields;
 
     var buf: std.ArrayList(u8) = .empty;
@@ -255,15 +274,16 @@ pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkF
 
     comptime var i: usize = 0;
     inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
         if (i != 0) try b.lit(", ");
-        try b.ident(f.name);
+        try b.ident(meta.columnName(f.name, m));
         i += 1;
     }
 
     try b.lit(" FROM ");
     try b.ident(m.table);
     try b.lit(" WHERE ");
-    try b.ident(m.primary_key);
+    try b.ident(meta.pkColumnName(m));
     try b.lit("=?1 LIMIT 1;");
 
     const sql = try buf.toOwnedSlice(db.allocator);
@@ -282,6 +302,7 @@ pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkF
 
     comptime var col: usize = 0;
     inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
         const v = try readValue(f.type, &st, allocator, @as(i32, @intCast(col)));
         @field(out, f.name) = v;
         col += 1;
@@ -311,6 +332,11 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     if (ti != .@"struct") @compileError("findOne expects a struct type");
 
     const m = comptime meta.getMeta(T);
+    comptime {
+        if (meta.isSkipped(m.primary_key, m)) {
+            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
+        }
+    }
     const fields = ti.@"struct".fields;
 
     var buf: std.ArrayList(u8) = .empty;
@@ -323,8 +349,9 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
 
     comptime var i: usize = 0;
     inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
         if (i != 0) try b.lit(", ");
-        try b.ident(f.name);
+        try b.ident(meta.columnName(f.name, m));
         i += 1;
     }
 
@@ -354,6 +381,7 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
 
     comptime var col: usize = 0;
     inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
         const v = try readValue(f.type, &st, allocator, @as(i32, @intCast(col)));
         @field(out, f.name) = v;
         col += 1;
@@ -430,6 +458,11 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
         @compileError("findMany expects a struct type");
 
     const m = comptime meta.getMeta(T);
+    comptime {
+        if (meta.isSkipped(m.primary_key, m)) {
+            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
+        }
+    }
     const fields = ti.@"struct".fields;
 
     var buf: std.ArrayList(u8) = .empty;
@@ -442,9 +475,10 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
 
     comptime var i: usize = 0;
     inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
         if (i != 0)
             try b.lit(", ");
-        try b.ident(f.name);
+        try b.ident(meta.columnName(f.name, m));
         i += 1;
     }
 

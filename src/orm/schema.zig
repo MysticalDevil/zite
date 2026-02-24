@@ -120,12 +120,87 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
 /// Builds a CREATE TABLE statement using T.Meta.
 pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) errors.ZiteError![]u8 {
     const m = comptime meta.getMeta(T);
-    return createTableSql(allocator, T, .{
-        .table_name = m.table,
-        .primary_key = m.primary_key,
-        .autoincrement = true,
-        .if_not_exists = true,
-    });
+    const info = @typeInfo(T);
+    if (info != .@"struct") @compileError("createTableSqlFromMeta expects a struct type");
+
+    comptime {
+        if (meta.isSkipped(m.primary_key, m)) {
+            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
+        }
+    }
+
+    var list: std.ArrayList(u8) = .empty;
+    errdefer list.deinit(allocator);
+
+    var b = sqlutil.SqlBuilder.init(&list, allocator);
+    try b.reserve(sqlutil.estCreateTableLen(T, m.table));
+
+    try b.lit("CREATE TABLE IF NOT EXISTS ");
+    try b.ident(m.table);
+    try b.lit(" (\n");
+
+    const fields = info.@"struct".fields;
+    comptime var emitted_fields: usize = 0;
+
+    inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
+
+        if (emitted_fields != 0) try b.lit(",\n");
+
+        try b.lit("  ");
+        try b.ident(meta.columnName(f.name, m));
+        try b.byte(' ');
+        try b.lit(sqliteDeclaredType(f.type));
+
+        const pk = meta.isPk(f.name, m.primary_key);
+        if (pk) {
+            try b.lit(" PRIMARY KEY");
+
+            const base = unwrapOptionalType(f.type);
+            const is_int = switch (@typeInfo(base)) {
+                .int, .comptime_int => true,
+                else => false,
+            };
+            if (is_int) {
+                try b.lit(" AUTOINCREMENT");
+            }
+        } else if (!isOptional(f.type)) {
+            try b.lit(" NOT NULL");
+        }
+
+        emitted_fields += 1;
+    }
+
+    inline for (m.unique) |u| {
+        if (u.len == 0) continue;
+        try b.lit(",\n  UNIQUE (");
+        comptime var ui: usize = 0;
+        inline for (u) |field_name| {
+            if (!fieldExists(T, field_name)) {
+                @compileError("Unique constraint references unknown field: " ++ field_name);
+            }
+            if (comptime meta.isSkipped(field_name, m)) {
+                @compileError("Unique constraint references skipped field: " ++ field_name);
+            }
+            if (ui != 0) try b.lit(", ");
+            try b.ident(meta.columnName(field_name, m));
+            ui += 1;
+        }
+        try b.lit(")");
+    }
+
+    try b.lit("\n);");
+
+    return try list.toOwnedSlice(allocator);
+}
+
+fn fieldExists(comptime T: type, comptime name: []const u8) bool {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct") @compileError("fieldExists expects a struct type");
+    inline for (ti.@"struct".fields) |f| {
+        if (comptime std.mem.eql(u8, f.name, name)) return true;
+    }
+    return false;
 }
 
 test "createTableSql: basic struct -> CREATE TABLE with NOT NULL and PK" {
@@ -209,4 +284,34 @@ test "createTableSql: custom primary key file name" {
     defer a.free(sql);
     try std.testing.expect(std.mem.indexOf(u8, sql, "\"doc_id\" INTEGER PRIMARY KEY") != null);
     try std.testing.expect(std.mem.indexOf(u8, sql, "\"title\" TEXT NOT NULL") != null);
+}
+
+test "createTableSqlFromMeta: rename, skip, unique" {
+    const a = std.testing.allocator;
+
+    const User = struct {
+        id: i64,
+        name: types.OwnedText,
+        temp: i32,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip = .{"temp"},
+            .rename = .{ .{ .field = "name", .column = "full_name" } },
+            .unique = .{ .{"name"} },
+        };
+    };
+
+    const sql = try createTableSqlFromMeta(a, User);
+    defer a.free(sql);
+
+    const expected =
+        \\CREATE TABLE IF NOT EXISTS "users" (
+        \\  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+        \\  "full_name" TEXT NOT NULL,
+        \\  UNIQUE ("full_name")
+        \\);
+    ;
+    try std.testing.expectEqualStrings(expected, sql);
 }

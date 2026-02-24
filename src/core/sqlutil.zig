@@ -89,11 +89,12 @@ pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type,
 
     comptime var col_i: usize = 0;
     inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
         const skip = comptime (m.skip_primary_key_on_insert and meta.isPk(f.name, m.primary_key));
         if (skip) continue;
 
         if (col_i != 0) try list.appendSlice(gpa, ", ");
-        try writeIdent(list, gpa, f.name);
+        try writeIdent(list, gpa, meta.columnName(f.name, m));
         col_i += 1;
     }
 }
@@ -106,10 +107,11 @@ pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, 
 
     comptime var set_i: usize = 0;
     inline for (fields) |f| {
+        if (comptime meta.isSkipped(f.name, m)) continue;
         if (comptime meta.isPk(f.name, m.primary_key)) continue;
 
         if (set_i != 0) try list.appendSlice(gpa, ", ");
-        try writeIdent(list, gpa, f.name);
+        try writeIdent(list, gpa, meta.columnName(f.name, m));
         try list.appendSlice(gpa, "=?");
         try list.print(gpa, "{}", .{set_i + 1});
         set_i += 1;
