@@ -129,6 +129,9 @@ pub const Stmt = struct {
         if (T == types.UnixMillis) {
             return self.bindInt(idx, value.value);
         }
+        if (T == types.Text) {
+            return self.bindText(idx, value.value);
+        }
         if (T == types.Blob) {
             return self.bindBlob(idx, value.value);
         }

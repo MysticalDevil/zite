@@ -36,6 +36,7 @@ fn sqliteDeclaredType(comptime T_in: type) []const u8 {
     const T = unwrapOptionalType(T_in);
 
     if (T == types.UnixMillis) return "INTEGER";
+    if (T == types.Text) return "TEXT";
     if (T == types.Blob) return "BLOB";
 
     return switch (@typeInfo(T)) {

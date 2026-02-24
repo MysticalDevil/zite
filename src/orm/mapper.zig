@@ -22,6 +22,10 @@ fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col
     if (FieldT == types.UnixMillis) {
         return .{ .value = st.colInt(col) };
     }
+    if (FieldT == types.Text) {
+        const owned = (try st.colTextOwned(allocator, col)) orelse return error.UnexpectedNull;
+        return .{ .value = owned };
+    }
     if (FieldT == types.Blob) {
         const owned = (try st.colBlobOwned(allocator, col)) orelse return error.UnexpectedNull;
         return .{ .value = owned };
@@ -386,6 +390,11 @@ pub fn freeOwned(comptime T: type, allocator: std.mem.Allocator, value: *T) void
 }
 
 fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: anytype) void {
+    if (FieldT == types.Text) {
+        const s = field_ptr.value;
+        if (s.len != 0) allocator.free(s);
+        return;
+    }
     if (FieldT == types.Blob) {
         const s = field_ptr.value;
         if (s.len != 0) allocator.free(s);
