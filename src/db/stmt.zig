@@ -28,6 +28,7 @@ pub const Stmt = struct {
     const Self = @This();
 
     /// Prepares a SQL statement. Must be finalized when no longer used.
+    /// Caller owns the statement and must call `deinit()`.
     pub fn init(db: *Db, sql: []const u8) errors.ZiteError!Self {
         var stmt_opt: ?raw.StmtHandle = null;
 
@@ -70,6 +71,7 @@ pub const Stmt = struct {
     }
 
     /// Steps the statement. Returns .row for a row, .done when complete.
+    /// The caller must read columns before stepping again.
     pub fn step(self: *Stmt) errors.ZiteError!StepResult {
         const rc = raw.stmt.step(self.stmt);
         return switch (rc) {
@@ -147,6 +149,7 @@ pub const Stmt = struct {
 
     /// General Binding: Supports int/uint/bool/float/enum/optional(?T)
     /// plus types.OwnedText/types.OwnedBlob and types.EpochMillis.
+    /// For TEXT/BLOB, use Owned* types (borrowed slices are not accepted).
     pub fn bindOne(self: *Self, idx: i32, value: anytype) errors.ZiteError!void {
         const T = @TypeOf(value);
 

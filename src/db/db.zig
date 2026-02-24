@@ -16,6 +16,7 @@ pub const Db = struct {
     const Self = @This();
 
     /// Opens a SQLite database at the provided path.
+    /// Caller must `deinit()` when finished.
     pub fn open(allocator: std.mem.Allocator, path: []const u8) errors.ZiteError!Self {
         const path_z = try allocator.dupeZ(u8, path);
         defer allocator.free(path_z);
@@ -55,6 +56,7 @@ pub const Db = struct {
     }
 
     /// Executes a SQL statement without returning rows.
+    /// The SQL string is copied into a temporary null-terminated buffer.
     pub fn exec(self: *Self, sql: []const u8) errors.ZiteError!void {
         const sql_z = try self.allocator.dupeZ(u8, sql);
         defer self.allocator.free(sql_z);
@@ -68,6 +70,7 @@ pub const Db = struct {
     }
 
     /// Returns the last SQLite error message for this connection.
+    /// The returned slice is only valid until the next sqlite call.
     pub fn errmsg(self: *Db) []const u8 {
         const p = raw.db.errmsg(self.handle);
         if (p == null) return "";

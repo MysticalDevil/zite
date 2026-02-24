@@ -58,6 +58,7 @@ fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col
 }
 
 /// Iterator over query results, with optional owned field allocation.
+/// Caller must `deinit()` if iteration is not completed.
 pub fn Rows(comptime T: type) type {
     return struct {
         st: Stmt,
@@ -76,7 +77,8 @@ pub fn Rows(comptime T: type) type {
         }
 
         /// Returns the next row or null when complete. On error, finalizes
-        /// the statement to avoid leaks.
+        /// the statement to avoid leaks. Returned rows must be freed with
+        /// `freeOwnedRow` when they contain owned fields.
         pub fn next(self: *Self) errors.ZiteError!?T {
             if (self.done) return null;
 
@@ -134,6 +136,7 @@ pub fn RowsOwned(comptime T: type) type {
 }
 
 /// Inserts a record and returns the last insert rowid.
+/// The caller is responsible for freeing any owned fields in `entity`.
 pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("insert expects a struct type");
@@ -185,6 +188,7 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
 }
 
 /// Updates a record by primary key; returns number of rows changed.
+/// The caller is responsible for freeing any owned fields in `entity`.
 pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("update expects a struct type");
@@ -250,9 +254,8 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     return db.changes();
 }
 
-    /// SELECT *by pk*, return ?T; if it contains TEXT/BLOB fields, they will be allocated
-    /// on the allocator, and the caller is responsible for freeing them.
 /// Fetches a record by primary key, allocating TEXT/BLOB fields.
+/// Returned rows must be freed with `freeOwnedRow` when they contain owned fields.
 pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?T {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("findById expects a struct type");
@@ -315,6 +318,7 @@ pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkF
 }
 
 /// Fetches a record by primary key into OwnedRow(T).
+/// Returned row owns any TEXT/BLOB and must be deinitialized.
 pub fn findByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?OwnedRow(T) {
     if (try findById(T, db, allocator, id)) |v| {
         return wrapOwnedRow(T, allocator, v);
@@ -322,11 +326,10 @@ pub fn findByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id
     return null;
 }
 
-/// Generic query: where_clause provided by caller (excluding “WHERE” prefix)
-/// params is a tuple/struct (e.g., .{ 123, “alice” }), bound sequentially to ?1..?N
-///
-/// Returns ?T: null if no match is found; one record if found (TEXT slice fields allocate owned memory on the allocator)
 /// Executes a WHERE query and returns at most one row.
+/// where_clause is provided by caller (excluding "WHERE" prefix).
+/// params is a tuple/struct (e.g., .{ 123, "alice" }), bound to ?1..?N.
+/// Returned rows must be freed with `freeOwnedRow` when they contain owned fields.
 pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!?T {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("findOne expects a struct type");
@@ -443,6 +446,7 @@ fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: any
 }
 
 /// Executes a WHERE query and returns an iterator over rows.
+/// Rows must be freed with `freeOwnedRow` when they contain owned fields.
 pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!Rows(T) {
     const ti = @typeInfo(T);
     if (ti != .@"struct")
