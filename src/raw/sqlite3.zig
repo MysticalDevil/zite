@@ -5,6 +5,14 @@ const c = @cImport({
 pub const sqlite3 = c.sqlite3;
 pub const sqlite3_stmt = c.sqlite3_stmt;
 
+pub const DbHandle = struct {
+    ptr: *sqlite3,
+};
+
+pub const StmtHandle = struct {
+    ptr: *sqlite3_stmt,
+};
+
 pub const sqlite3_open = c.sqlite3_open;
 pub const sqlite3_close = c.sqlite3_close;
 pub const sqlite3_close_v2 = c.sqlite3_close_v2;

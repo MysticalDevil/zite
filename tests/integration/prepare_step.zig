@@ -28,7 +28,7 @@ test "prepare_v2 + step: verify users table exists via sqlite_master" {
     defer a.free(qz);
 
     var stmt_opt: ?*orm.raw.sqlite3_stmt = null;
-    const rc_prep = orm.raw.sqlite3_prepare_v2(db.handle, qz.ptr, -1, &stmt_opt, null);
+    const rc_prep = orm.raw.sqlite3_prepare_v2(db.handle.ptr, qz.ptr, -1, &stmt_opt, null);
     try std.testing.expectEqual(orm.raw.SQLITE_OK, rc_prep);
     const stmt = stmt_opt.?;
 

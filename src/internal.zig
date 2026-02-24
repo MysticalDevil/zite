@@ -1,4 +1,4 @@
-pub const raw = @import("raw/sqlite3.zig");
+pub const raw = @import("raw/mod.zig");
 pub const errors = @import("core/errors.zig");
 
 pub const Db = @import("db/db.zig").Db;

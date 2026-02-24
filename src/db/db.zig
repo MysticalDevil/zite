@@ -1,12 +1,12 @@
 const std = @import("std");
-const raw = @import("../raw/sqlite3.zig");
+const raw = @import("../raw/mod.zig");
 const diag = @import("diag.zig");
 const errors = @import("../core/errors.zig");
 const sqlite_errors = @import("sqlite_errors.zig");
 
 pub const Db = struct {
     allocator: std.mem.Allocator,
-    handle: *raw.sqlite3,
+    handle: raw.DbHandle,
 
     const Self = @This();
 
@@ -14,24 +14,24 @@ pub const Db = struct {
         const path_z = try allocator.dupeZ(u8, path);
         defer allocator.free(path_z);
 
-        var db_ptr: ?*raw.sqlite3 = null;
-        const rc = raw.sqlite3_open(path_z.ptr, &db_ptr);
-        if (rc != raw.SQLITE_OK or db_ptr == null) {
-            if (db_ptr) |h| {
+        var db_handle: ?raw.DbHandle = null;
+        const rc = raw.db.open(path_z.ptr, &db_handle);
+        if (rc != raw.SQLITE_OK or db_handle == null) {
+            if (db_handle) |h| {
                 var tmp = Db{ .allocator = allocator, .handle = h };
                 diag.logSqlite(&tmp, rc, "sqlite3_open", null);
-                _ = raw.sqlite3_close(h);
+                _ = raw.db.close(h);
             } else {
                 std.log.warn("sqlite failure what=sqlite3_open rc={} msg=handle_null", .{rc});
             }
             return sqlite_errors.mapSqliteRc(rc, error.SqliteOpenFailed);
         }
 
-        return .{ .allocator = allocator, .handle = db_ptr.? };
+        return .{ .allocator = allocator, .handle = db_handle.? };
     }
 
     pub fn close(self: *Self) void {
-        const rc = raw.sqlite3_close_v2(self.handle);
+        const rc = raw.db.closeV2(self.handle);
         if (rc != raw.SQLITE_OK) {
             diag.logSqlite(self, rc, "sqlite3_close_v2", null);
         }
@@ -45,7 +45,7 @@ pub const Db = struct {
         const sql_z = try self.allocator.dupeZ(u8, sql);
         defer self.allocator.free(sql_z);
 
-        const rc = raw.sqlite3_exec(self.handle, sql_z.ptr, null, null, null);
+        const rc = raw.db.exec(self.handle, sql_z.ptr);
 
         if (rc != raw.SQLITE_OK) {
             diag.logSqlite(self, rc, "sqlite3_exec", sql);
@@ -54,16 +54,16 @@ pub const Db = struct {
     }
 
     pub fn errmsg(self: *Db) []const u8 {
-        const p = raw.sqlite3_errmsg(self.handle);
+        const p = raw.db.errmsg(self.handle);
         if (p == null) return "";
-        return std.mem.span(p);
+        return std.mem.span(p.?);
     }
 
     pub fn lastInsertRowId(self: *Self) i64 {
-        return raw.sqlite3_last_insert_rowid(self.handle);
+        return raw.db.lastInsertRowId(self.handle);
     }
 
     pub fn changes(self: *Self) c_int {
-        return raw.sqlite3_changes(self.handle);
+        return raw.db.changes(self.handle);
     }
 };

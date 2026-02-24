@@ -41,7 +41,7 @@ test "create table from struct and verify sqlite_master" {
     var errmsg: [*c]u8 = null;
     defer if (errmsg != null) orm.raw.sqlite3_free(errmsg);
 
-    const rc = orm.raw.sqlite3_exec(db.handle, qz.ptr, Callback.cb, &found, &errmsg);
+    const rc = orm.raw.sqlite3_exec(db.handle.ptr, qz.ptr, Callback.cb, &found, &errmsg);
     try std.testing.expectEqual(orm.raw.SQLITE_OK, rc);
     try std.testing.expect(found);
 }
