@@ -1,3 +1,4 @@
+/// Unified error set returned by public APIs.
 pub const ZiteError = error{
     OutOfMemory,
 

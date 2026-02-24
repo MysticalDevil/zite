@@ -1,6 +1,7 @@
 const raw = @import("../raw/mod.zig");
 const errors = @import("../core/errors.zig");
 
+/// Maps SQLite return codes to more specific ZiteError values.
 pub fn mapSqliteRc(rc: i32, fallback: errors.ZiteError) errors.ZiteError {
     return switch (rc) {
         raw.SQLITE_BUSY => error.SqliteBusy,

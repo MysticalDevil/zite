@@ -65,6 +65,7 @@ fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col
     }
 }
 
+/// Iterator over query results, with optional owned field allocation.
 pub fn Rows(comptime T: type) type {
     return struct {
         st: Stmt,
@@ -116,6 +117,7 @@ pub fn Rows(comptime T: type) type {
     };
 }
 
+/// Iterator returning Owned(T), which frees TEXT/BLOB on deinit.
 pub fn RowsOwned(comptime T: type) type {
     return struct {
         rows: Rows(T),
@@ -135,6 +137,7 @@ pub fn RowsOwned(comptime T: type) type {
     };
 }
 
+/// Inserts a record and returns the last insert rowid.
 pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("insert expects a struct type");
@@ -179,6 +182,7 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     return db.lastInsertRowId();
 }
 
+/// Updates a record by primary key; returns number of rows changed.
 pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("update expects a struct type");
@@ -240,6 +244,7 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
 
     /// SELECT *by pk*, return ?T; if it contains TEXT/BLOB fields, they will be allocated
     /// on the allocator, and the caller is responsible for freeing them.
+/// Fetches a record by primary key, allocating TEXT/BLOB fields.
 pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?T {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("getById expects a struct type");
@@ -294,6 +299,7 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
     return out;
 }
 
+/// Fetches a record by primary key into Owned(T).
 pub fn getByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?Owned(T) {
     if (try getById(T, db, allocator, id)) |v| {
         return wrapOwned(T, allocator, v);
@@ -305,6 +311,7 @@ pub fn getByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id:
 /// params is a tuple/struct (e.g., .{ 123, “alice” }), bound sequentially to ?1..?N
 ///
 /// Returns ?T: null if no match is found; one record if found (TEXT slice fields allocate owned memory on the allocator)
+/// Executes a WHERE query and returns at most one row.
 pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!?T {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("findOne expects a struct type");
@@ -364,6 +371,7 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     return out;
 }
 
+/// Executes a WHERE query and returns at most one row into Owned(T).
 pub fn findOneOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!?Owned(T) {
     if (try findOne(T, P, db, allocator, where_clause, params)) |v| {
         return wrapOwned(T, allocator, v);
@@ -389,6 +397,7 @@ fn wrapOwned(comptime T: type, allocator: std.mem.Allocator, v: T) Owned(T) {
     return .{ .allocator = allocator, .value = v };
 }
 
+/// Frees owned TEXT/BLOB fields for a value.
 pub fn freeOwned(comptime T: type, allocator: std.mem.Allocator, value: *T) void {
     const ti = @typeInfo(T);
     if (ti != .@"struct")
@@ -426,6 +435,7 @@ fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: any
     }
 }
 
+/// Executes a WHERE query and returns an iterator over rows.
 pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!Rows(T) {
     const ti = @typeInfo(T);
     if (ti != .@"struct")
@@ -475,6 +485,7 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
     };
 }
 
+/// Executes a WHERE query and returns an iterator of Owned(T) rows.
 pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!RowsOwned(T) {
     const r = try findMany(T, P, db, allocator, where_clause, params);
     return .{ .rows = r };

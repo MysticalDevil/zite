@@ -1,14 +1,19 @@
+/// Direct C bindings to sqlite3.h (raw FFI).
 const c = @cImport({
     @cInclude("sqlite3.h");
 });
 
+/// Opaque sqlite3 connection type.
 pub const sqlite3 = c.sqlite3;
+/// Opaque sqlite3 statement type.
 pub const sqlite3_stmt = c.sqlite3_stmt;
 
+/// Typed wrapper for sqlite3*.
 pub const DbHandle = struct {
     ptr: *sqlite3,
 };
 
+/// Typed wrapper for sqlite3_stmt*.
 pub const StmtHandle = struct {
     ptr: *sqlite3_stmt,
 };

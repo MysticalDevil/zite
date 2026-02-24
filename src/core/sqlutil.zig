@@ -55,6 +55,7 @@ pub const SqlBuilder = struct {
     }
 };
 
+/// Writes a quoted SQL identifier, escaping embedded quotes.
 pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) errors.ZiteError!void {
     try list.append(gpa, '"');
     for (name) |ch| {
@@ -67,6 +68,7 @@ pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) errors.Zit
     try list.append(gpa, '"');
 }
 
+/// Writes numbered placeholders (?1, ?2, ...).
 pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize) errors.ZiteError!void {
     comptime var i: usize = 1;
     inline while (i <= count) : (i += 1) {
@@ -76,6 +78,7 @@ pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize
     }
 }
 
+/// Writes insertable column list for T, skipping PK if configured.
 pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("writeInsertColumnList expects a struct type");
@@ -92,6 +95,7 @@ pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type,
     }
 }
 
+/// Writes UPDATE SET clause for T (excluding PK).
 pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("writeUpdateSetClause expects a struct type");
@@ -118,6 +122,7 @@ fn fieldNameLen(comptime T: type) usize {
     return total;
 }
 
+/// Estimates SQL length for INSERT statements of T.
 pub fn estimateInsertLen(comptime T: type, comptime m: meta.Meta) usize {
     const field_count = @typeInfo(T).@"struct".fields.len;
     const col_count = comptime meta.insertableCount(T, m);
@@ -129,6 +134,7 @@ pub fn estimateInsertLen(comptime T: type, comptime m: meta.Meta) usize {
     return base + names_len + name_quotes + separators + placeholders + field_count;
 }
 
+/// Estimates SQL length for UPDATE statements of T.
 pub fn estimateUpdateLen(comptime T: type, comptime m: meta.Meta) usize {
     const field_count = @typeInfo(T).@"struct".fields.len;
     const set_count = comptime meta.updateSetCount(T, m);
@@ -140,6 +146,7 @@ pub fn estimateUpdateLen(comptime T: type, comptime m: meta.Meta) usize {
     return base + names_len + name_quotes + separators + placeholders + field_count;
 }
 
+/// Estimates SQL length for SELECT statements of T.
 pub fn estimateSelectLen(comptime T: type, comptime m: meta.Meta, where_len: usize, limit_one: bool) usize {
     const fields = @typeInfo(T).@"struct".fields;
     const names_len = comptime fieldNameLen(T);
@@ -151,6 +158,7 @@ pub fn estimateSelectLen(comptime T: type, comptime m: meta.Meta, where_len: usi
     return base + names_len + name_quotes + separators + where_part + limit_part;
 }
 
+/// Estimates SQL length for CREATE TABLE statements of T.
 pub fn estimateCreateTableLen(comptime T: type, table_name: []const u8) usize {
     const names_len = comptime fieldNameLen(T);
     const field_count = @typeInfo(T).@"struct".fields.len;

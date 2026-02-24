@@ -14,6 +14,7 @@ fn enabledInThisBuild() bool {
     return build_options.diag_enable_in_tests;
 }
 
+/// Logs a sqlite failure with optional SQL snippet (if enabled).
 pub fn logSqlite(db: *Db, rc: i32, comptime what: []const u8, sql: ?[]const u8) void {
     if (!enabledInThisBuild()) return;
 
@@ -21,6 +22,7 @@ pub fn logSqlite(db: *Db, rc: i32, comptime what: []const u8, sql: ?[]const u8) 
     if (sql) |s| std.log.warn("sqlite sql={s}", .{sqlSnippet(s)});
 }
 
+/// Logs bind failures when diagnostics are enabled.
 pub fn logBind(comptime kind: []const u8, idx: i32) void {
     if (!enabledInThisBuild()) return;
     std.log.warn("sqlite bind idx={} kind={s}", .{ idx, kind });

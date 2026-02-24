@@ -1,5 +1,6 @@
 const sqlite = @import("sqlite3.zig");
 
+/// SQLite return code type used by raw helpers.
 pub const Rc = i32;
 
 pub const SQLITE_OK: Rc = @intCast(sqlite.SQLITE_OK);

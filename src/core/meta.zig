@@ -1,15 +1,18 @@
 const std = @import("std");
 
+/// Declarative metadata for ORM mapping.
 pub const Meta = struct {
     table: []const u8,
     primary_key: []const u8 = "id",
     skip_primary_key_on_insert: bool = true,
 };
 
+/// Returns true when the field name matches the primary key.
 pub fn isPk(comptime name: []const u8, comptime pk: []const u8) bool {
     return std.mem.eql(u8, name, pk);
 }
 
+/// Reads Meta from a struct type, with defaults.
 pub fn getMeta(comptime T: type) Meta {
     if (!@hasDecl(T, "Meta")) {
         @compileError("Type" ++ @typeName(T) ++ " must declar `pub const Meta = .{ .table = \"...\"}`");
@@ -33,6 +36,7 @@ pub fn getMeta(comptime T: type) Meta {
     };
 }
 
+/// True if the type defines a field matching the primary key.
 pub fn hasPrimaryKeyField(comptime T: type, comptime m: Meta) bool {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("hasPrimaryKeyField expects a struct type");
@@ -44,6 +48,7 @@ pub fn hasPrimaryKeyField(comptime T: type, comptime m: Meta) bool {
     return false;
 }
 
+/// Number of fields insertable for the given Meta.
 pub fn insertableCount(comptime T: type, comptime m: Meta) usize {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("insertableCount expects a struct type");
@@ -57,6 +62,7 @@ pub fn insertableCount(comptime T: type, comptime m: Meta) usize {
     return n;
 }
 
+/// Number of fields included in UPDATE SET clause.
 pub fn updateSetCount(comptime T: type, comptime m: Meta) usize {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("updateSetCount expects a struct type");

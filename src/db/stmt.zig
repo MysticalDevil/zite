@@ -8,6 +8,7 @@ const sqlite_errors = @import("sqlite_errors.zig");
 const Db = @import("db.zig").Db;
 const db_ok = raw.SQLITE_OK;
 
+/// Result of stepping a statement.
 pub const StepResult = enum { row, done };
 
 pub const Stmt = struct {
