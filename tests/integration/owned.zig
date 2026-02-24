@@ -13,7 +13,7 @@ const User = struct {
     };
 };
 
-test "owned: getByIdOwned and findManyOwned free via deinit" {
+test "owned: findByIdOwned and findManyOwned free via deinit" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer {
         const chk = gpa.deinit();
@@ -31,7 +31,7 @@ test "owned: getByIdOwned and findManyOwned free via deinit" {
     const id1 = try orm.mapper.insert(User, &db, .{ .id = 0, .name = "alice", .age = 10 });
     _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = "bob", .age = 20 });
 
-    if (try orm.mapper.getByIdOwned(User, &db, a, id1)) |owned| {
+    if (try orm.mapper.findByIdOwned(User, &db, a, id1)) |owned| {
         var o = owned;
         defer o.deinit();
         try std.testing.expectEqualStrings("alice", o.value.name);

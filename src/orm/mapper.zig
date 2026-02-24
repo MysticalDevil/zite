@@ -20,14 +20,14 @@ fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
 }
 
 fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: i32) errors.ZiteError!FieldT {
-    if (FieldT == types.UnixMillis) {
+    if (FieldT == types.EpochMillis) {
         return .{ .value = st.colInt(col) };
     }
-    if (FieldT == types.Text) {
+    if (FieldT == types.OwnedText) {
         const owned = (try st.colTextOwned(allocator, col)) orelse return error.UnexpectedNull;
         return .{ .value = owned };
     }
-    if (FieldT == types.Blob) {
+    if (FieldT == types.OwnedBlob) {
         const owned = (try st.colBlobOwned(allocator, col)) orelse return error.UnexpectedNull;
         return .{ .value = owned };
     }
@@ -100,7 +100,7 @@ pub fn Rows(comptime T: type) type {
             }
 
             var out: T = std.mem.zeroes(T);
-            errdefer freeOwned(T, self.allocator, &out);
+            errdefer freeOwnedRow(T, self.allocator, &out);
 
             const ti = @typeInfo(T);
             const fields = ti.@"struct".fields;
@@ -117,7 +117,7 @@ pub fn Rows(comptime T: type) type {
     };
 }
 
-/// Iterator returning Owned(T), which frees TEXT/BLOB on deinit.
+/// Iterator returning OwnedRow(T), which frees TEXT/BLOB on deinit.
 pub fn RowsOwned(comptime T: type) type {
     return struct {
         rows: Rows(T),
@@ -128,9 +128,9 @@ pub fn RowsOwned(comptime T: type) type {
             self.rows.deinit();
         }
 
-        pub fn next(self: *Self) errors.ZiteError!?Owned(T) {
+        pub fn next(self: *Self) errors.ZiteError!?OwnedRow(T) {
             if (try self.rows.next()) |v| {
-                return wrapOwned(T, self.rows.allocator, v);
+                return wrapOwnedRow(T, self.rows.allocator, v);
             }
             return null;
         }
@@ -149,7 +149,7 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
     var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
-    try b.reserve(sqlutil.estimateInsertLen(T, m));
+    try b.reserve(sqlutil.estInsertLen(T, m));
 
     try b.lit("INSERT INTO ");
     try b.ident(m.table);
@@ -201,7 +201,7 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
     var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
-    try b.reserve(sqlutil.estimateUpdateLen(T, m));
+    try b.reserve(sqlutil.estUpdateLen(T, m));
 
     try b.lit("UPDATE ");
     try b.ident(m.table);
@@ -245,9 +245,9 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     /// SELECT *by pk*, return ?T; if it contains TEXT/BLOB fields, they will be allocated
     /// on the allocator, and the caller is responsible for freeing them.
 /// Fetches a record by primary key, allocating TEXT/BLOB fields.
-pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?T {
+pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?T {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("getById expects a struct type");
+    if (ti != .@"struct") @compileError("findById expects a struct type");
 
     const m = comptime meta.getMeta(T);
     const fields = ti.@"struct".fields;
@@ -255,7 +255,7 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
     var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
-    try b.reserve(sqlutil.estimateSelectLen(T, m, 0, true));
+    try b.reserve(sqlutil.estSelectLen(T, m, 0, true));
 
     try b.lit("SELECT ");
 
@@ -284,7 +284,7 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
     if (r == .done) return null;
 
     var out: T = std.mem.zeroes(T);
-    errdefer freeOwned(T, allocator, &out);
+    errdefer freeOwnedRow(T, allocator, &out);
 
     comptime var col: usize = 0;
     inline for (fields) |f| {
@@ -299,10 +299,10 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
     return out;
 }
 
-/// Fetches a record by primary key into Owned(T).
-pub fn getByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?Owned(T) {
-    if (try getById(T, db, allocator, id)) |v| {
-        return wrapOwned(T, allocator, v);
+/// Fetches a record by primary key into OwnedRow(T).
+pub fn findByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?OwnedRow(T) {
+    if (try findById(T, db, allocator, id)) |v| {
+        return wrapOwnedRow(T, allocator, v);
     }
     return null;
 }
@@ -323,7 +323,7 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     defer buf.deinit(db.allocator);
     var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
     const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
-    try b.reserve(sqlutil.estimateSelectLen(T, m, trimmed.len, true));
+    try b.reserve(sqlutil.estSelectLen(T, m, trimmed.len, true));
 
     try b.lit("SELECT ");
 
@@ -356,7 +356,7 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     if (r == .done) return null;
 
     var out: T = std.mem.zeroes(T);
-    errdefer freeOwned(T, allocator, &out);
+    errdefer freeOwnedRow(T, allocator, &out);
 
     comptime var col: usize = 0;
     inline for (fields) |f| {
@@ -371,16 +371,16 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     return out;
 }
 
-/// Executes a WHERE query and returns at most one row into Owned(T).
-pub fn findOneOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!?Owned(T) {
+/// Executes a WHERE query and returns at most one row into OwnedRow(T).
+pub fn findOneOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!?OwnedRow(T) {
     if (try findOne(T, P, db, allocator, where_clause, params)) |v| {
-        return wrapOwned(T, allocator, v);
+        return wrapOwnedRow(T, allocator, v);
     }
     return null;
 }
 
 /// Wrapper that frees owned TEXT/BLOB fields via deinit().
-pub fn Owned(comptime T: type) type {
+pub fn OwnedRow(comptime T: type) type {
     return struct {
         allocator: std.mem.Allocator,
         value: T,
@@ -388,20 +388,20 @@ pub fn Owned(comptime T: type) type {
         const Self = @This();
 
         pub fn deinit(self: *Self) void {
-            freeOwned(T, self.allocator, &self.value);
+            freeOwnedRow(T, self.allocator, &self.value);
         }
     };
 }
 
-fn wrapOwned(comptime T: type, allocator: std.mem.Allocator, v: T) Owned(T) {
+fn wrapOwnedRow(comptime T: type, allocator: std.mem.Allocator, v: T) OwnedRow(T) {
     return .{ .allocator = allocator, .value = v };
 }
 
 /// Frees owned TEXT/BLOB fields for a value.
-pub fn freeOwned(comptime T: type, allocator: std.mem.Allocator, value: *T) void {
+pub fn freeOwnedRow(comptime T: type, allocator: std.mem.Allocator, value: *T) void {
     const ti = @typeInfo(T);
     if (ti != .@"struct")
-        @compileError("freeOwned expects a struct type");
+        @compileError("freeOwnedRow expects a struct type");
 
     inline for (ti.@"struct".fields) |f| {
         freeField(f.type, allocator, &@field(value, f.name));
@@ -409,12 +409,12 @@ pub fn freeOwned(comptime T: type, allocator: std.mem.Allocator, value: *T) void
 }
 
 fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: anytype) void {
-    if (FieldT == types.Text) {
+    if (FieldT == types.OwnedText) {
         const s = field_ptr.value;
         if (s.len != 0) allocator.free(s);
         return;
     }
-    if (FieldT == types.Blob) {
+    if (FieldT == types.OwnedBlob) {
         const s = field_ptr.value;
         if (s.len != 0) allocator.free(s);
         return;
@@ -448,7 +448,7 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
     defer buf.deinit(db.allocator);
     var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
     const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
-    try b.reserve(sqlutil.estimateSelectLen(T, m, trimmed.len, false));
+    try b.reserve(sqlutil.estSelectLen(T, m, trimmed.len, false));
 
     try b.lit("SELECT ");
 
@@ -485,7 +485,7 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
     };
 }
 
-/// Executes a WHERE query and returns an iterator of Owned(T) rows.
+/// Executes a WHERE query and returns an iterator of OwnedRow(T) rows.
 pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!RowsOwned(T) {
     const r = try findMany(T, P, db, allocator, where_clause, params);
     return .{ .rows = r };

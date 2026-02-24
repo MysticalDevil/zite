@@ -15,12 +15,12 @@ pub fn open(path_z: [*]const u8, out: *?DbHandle) i32 {
 }
 
 /// Closes the database handle (immediate close).
-pub fn close(handle: DbHandle) i32 {
+pub fn closeImmediate(handle: DbHandle) i32 {
     return @intCast(raw.sqlite3_close(handle.ptr));
 }
 
 /// Closes the database handle (deferred close).
-pub fn closeV2(handle: DbHandle) i32 {
+pub fn closeDeferred(handle: DbHandle) i32 {
     return @intCast(raw.sqlite3_close_v2(handle.ptr));
 }
 

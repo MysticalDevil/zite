@@ -4,7 +4,7 @@ pub const DbHandle = raw.DbHandle;
 pub const StmtHandle = raw.StmtHandle;
 
 /// Prepares a SQL statement with sqlite3_prepare_v2.
-pub fn prepareV2(db: DbHandle, sql: [*]const u8, n: i32, out: *?StmtHandle) i32 {
+pub fn prepare(db: DbHandle, sql: [*]const u8, n: i32, out: *?StmtHandle) i32 {
     var stmt_ptr: ?*raw.sqlite3_stmt = null;
     const rc: i32 = @intCast(raw.sqlite3_prepare_v2(db.ptr, sql, @intCast(n), &stmt_ptr, null));
     if (stmt_ptr) |s| {

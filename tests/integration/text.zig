@@ -3,7 +3,7 @@ const orm = @import("zite");
 
 const Note = struct {
     id: i64,
-    body: orm.types.Text,
+    body: orm.types.OwnedText,
 
     pub const Meta = .{
         .table = "notes",
@@ -12,7 +12,7 @@ const Note = struct {
     };
 };
 
-test "mapper: text round trip with types.Text" {
+test "mapper: text round trip with types.OwnedText" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -25,14 +25,14 @@ test "mapper: text round trip with types.Text" {
     try db.exec(ddl);
 
     const payload = "hello text";
-    const body = try orm.types.Text.fromConst(a, payload);
+    const body = try orm.types.OwnedText.fromConst(a, payload);
     defer a.free(body.value);
     _ = try orm.mapper.insert(Note, &db, .{
         .id = 0,
         .body = body,
     });
 
-    var got = (try orm.mapper.getByIdOwned(Note, &db, a, @as(i64, 1))).?;
+    var got = (try orm.mapper.findByIdOwned(Note, &db, a, @as(i64, 1))).?;
     defer got.deinit();
 
     try std.testing.expectEqualStrings(payload, got.value.body.value);

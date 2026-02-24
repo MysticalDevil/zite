@@ -18,7 +18,7 @@ fn freeUser(a: std.mem.Allocator, u: *User) void {
     a.free(@constCast(u.name));
 }
 
-test "mapper.getById: insert -> getById -> update -> getById" {
+test "mapper.findById: insert -> findById -> update -> findById" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -40,7 +40,7 @@ test "mapper.getById: insert -> getById -> update -> getById" {
     const new_id = try orm.mapper.insert(User, &db, u);
     try std.testing.expect(new_id > 0);
 
-    var got1 = (try orm.mapper.getById(User, &db, a, new_id)).?;
+    var got1 = (try orm.mapper.findById(User, &db, a, new_id)).?;
     defer freeUser(a, &got1);
 
     try std.testing.expectEqual(new_id, got1.id);
@@ -55,7 +55,7 @@ test "mapper.getById: insert -> getById -> update -> getById" {
     const changed = try orm.mapper.update(User, &db, u);
     try std.testing.expectEqual(@as(i32, 1), changed);
 
-    var got2 = (try orm.mapper.getById(User, &db, a, new_id)).?;
+    var got2 = (try orm.mapper.findById(User, &db, a, new_id)).?;
     defer freeUser(a, &got2);
 
     try std.testing.expectEqualStrings("alice2", got2.name);

@@ -38,7 +38,7 @@ test "mapper.findMany: ioterate rows and free owned fields" {
 
     while (try rows.next()) |u| {
         var tmp = u;
-        defer orm.mapper.freeOwned(User, a, &tmp);
+        defer orm.mapper.freeOwnedRow(User, a, &tmp);
 
         if (count == 0) {
             try std.testing.expectEqualStrings("bob", tmp.name);

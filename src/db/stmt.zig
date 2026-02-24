@@ -32,7 +32,7 @@ pub const Stmt = struct {
         var stmt_opt: ?raw.StmtHandle = null;
 
         const n: i32 = @intCast(sql.len);
-        const rc = raw.stmt.prepareV2(
+        const rc = raw.stmt.prepare(
             db.handle,
             sql.ptr,
             n,
@@ -143,17 +143,17 @@ pub const Stmt = struct {
     }
 
     /// General Binding: Supports int/uint/bool/float/enum/[]const u8/[]u8/optional(?T)
-    /// plus types.Text/types.Blob and types.UnixMillis.
+    /// plus types.OwnedText/types.OwnedBlob and types.EpochMillis.
     pub fn bindOne(self: *Self, idx: i32, value: anytype) errors.ZiteError!void {
         const T = @TypeOf(value);
 
-        if (T == types.UnixMillis) {
+        if (T == types.EpochMillis) {
             return self.bindInt(idx, value.value);
         }
-        if (T == types.Text) {
+        if (T == types.OwnedText) {
             return self.bindText(idx, value.value);
         }
-        if (T == types.Blob) {
+        if (T == types.OwnedBlob) {
             return self.bindBlob(idx, value.value);
         }
 

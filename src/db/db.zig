@@ -25,7 +25,7 @@ pub const Db = struct {
             if (db_handle) |h| {
                 var tmp = Db{ .allocator = allocator, .handle = h };
                 diag.logSqlite(&tmp, rc, "sqlite3_open", null);
-                _ = raw.db.close(h);
+                _ = raw.db.closeImmediate(h);
             } else {
                 std.log.warn("sqlite failure what=sqlite3_open rc={} msg=handle_null", .{rc});
             }
@@ -42,7 +42,7 @@ pub const Db = struct {
         if (self.active_stmts != 0) {
             std.log.warn("sqlite warning what=close_with_active_statements count={}", .{self.active_stmts});
         }
-        const rc = raw.db.closeV2(self.handle);
+        const rc = raw.db.closeDeferred(self.handle);
         if (rc != raw.SQLITE_OK) {
             diag.logSqlite(self, rc, "sqlite3_close_v2", null);
         }

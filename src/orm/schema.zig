@@ -42,9 +42,9 @@ fn unwrapOptionalType(comptime T: type) type {
 fn sqliteDeclaredType(comptime T_in: type) []const u8 {
     const T = unwrapOptionalType(T_in);
 
-    if (T == types.UnixMillis) return "INTEGER";
-    if (T == types.Text) return "TEXT";
-    if (T == types.Blob) return "BLOB";
+    if (T == types.EpochMillis) return "INTEGER";
+    if (T == types.OwnedText) return "TEXT";
+    if (T == types.OwnedBlob) return "BLOB";
 
     return switch (@typeInfo(T)) {
         .int, .comptime_int => "INTEGER",
@@ -82,7 +82,7 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
     errdefer list.deinit(allocator);
 
     var b = sqlutil.SqlBuilder.init(&list, allocator);
-    try b.reserve(sqlutil.estimateCreateTableLen(T, opts.table_name));
+    try b.reserve(sqlutil.estCreateTableLen(T, opts.table_name));
 
     try b.lit("CREATE TABLE ");
     if (opts.if_not_exists) try b.lit("IF NOT EXISTS ");

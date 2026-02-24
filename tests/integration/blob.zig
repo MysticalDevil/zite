@@ -3,7 +3,7 @@ const orm = @import("zite");
 
 const Doc = struct {
     id: i64,
-    data: orm.types.Blob,
+    data: orm.types.OwnedBlob,
 
     pub const Meta = .{
         .table = "docs",
@@ -25,14 +25,14 @@ test "mapper: blob round trip" {
     try db.exec(ddl);
 
     const payload = [_]u8{ 0, 1, 2, 3, 4, 5 };
-    const data = try orm.types.Blob.fromConst(a, payload[0..]);
+    const data = try orm.types.OwnedBlob.fromConst(a, payload[0..]);
     defer a.free(data.value);
     _ = try orm.mapper.insert(Doc, &db, .{
         .id = 0,
         .data = data,
     });
 
-    var got = (try orm.mapper.getByIdOwned(Doc, &db, a, @as(i64, 1))).?;
+    var got = (try orm.mapper.findByIdOwned(Doc, &db, a, @as(i64, 1))).?;
     defer got.deinit();
 
     try std.testing.expectEqual(@as(usize, payload.len), got.value.data.value.len);

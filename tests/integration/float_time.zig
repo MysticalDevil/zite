@@ -6,7 +6,7 @@ const types = orm.types;
 const Sample = struct {
     id: i64,
     score: f64,
-    created_at: types.UnixMillis,
+    created_at: types.EpochMillis,
 
     pub const Meta = .{
         .table = "sample",
@@ -15,7 +15,7 @@ const Sample = struct {
     };
 };
 
-test "float + UnixMillis: insert -> getById -> findOne" {
+test "float + EpochMillis: insert -> findById -> findOne" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -27,7 +27,7 @@ test "float + UnixMillis: insert -> getById -> findOne" {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    const now = types.UnixMillis{ .value = 1700000000123 };
+    const now = types.EpochMillis{ .value = 1700000000123 };
 
     const id = try orm.mapper.insert(Sample, &db, .{
         .id = 0,
@@ -36,7 +36,7 @@ test "float + UnixMillis: insert -> getById -> findOne" {
     });
     try std.testing.expect(id > 0);
 
-    const got = (try orm.mapper.getById(Sample, &db, a, id)).?;
+    const got = (try orm.mapper.findById(Sample, &db, a, id)).?;
     try std.testing.expectApproxEqAbs(@as(f64, 12.5), got.score, 0.000001);
     try std.testing.expectEqual(now.value, got.created_at.value);
 

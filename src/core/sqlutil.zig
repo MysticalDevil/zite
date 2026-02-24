@@ -126,7 +126,7 @@ fn fieldNameLen(comptime T: type) usize {
 }
 
 /// Estimates SQL length for INSERT statements of T.
-pub fn estimateInsertLen(comptime T: type, comptime m: meta.Meta) usize {
+pub fn estInsertLen(comptime T: type, comptime m: meta.Meta) usize {
     const field_count = @typeInfo(T).@"struct".fields.len;
     const col_count = comptime meta.insertableCount(T, m);
     const names_len = comptime fieldNameLen(T);
@@ -138,7 +138,7 @@ pub fn estimateInsertLen(comptime T: type, comptime m: meta.Meta) usize {
 }
 
 /// Estimates SQL length for UPDATE statements of T.
-pub fn estimateUpdateLen(comptime T: type, comptime m: meta.Meta) usize {
+pub fn estUpdateLen(comptime T: type, comptime m: meta.Meta) usize {
     const field_count = @typeInfo(T).@"struct".fields.len;
     const set_count = comptime meta.updateSetCount(T, m);
     const names_len = comptime fieldNameLen(T);
@@ -150,7 +150,7 @@ pub fn estimateUpdateLen(comptime T: type, comptime m: meta.Meta) usize {
 }
 
 /// Estimates SQL length for SELECT statements of T.
-pub fn estimateSelectLen(comptime T: type, comptime m: meta.Meta, where_len: usize, limit_one: bool) usize {
+pub fn estSelectLen(comptime T: type, comptime m: meta.Meta, where_len: usize, limit_one: bool) usize {
     const fields = @typeInfo(T).@"struct".fields;
     const names_len = comptime fieldNameLen(T);
     const base = "SELECT ".len + " FROM ".len + m.table.len + ";".len;
@@ -162,7 +162,7 @@ pub fn estimateSelectLen(comptime T: type, comptime m: meta.Meta, where_len: usi
 }
 
 /// Estimates SQL length for CREATE TABLE statements of T.
-pub fn estimateCreateTableLen(comptime T: type, table_name: []const u8) usize {
+pub fn estCreateTableLen(comptime T: type, table_name: []const u8) usize {
     const names_len = comptime fieldNameLen(T);
     const field_count = @typeInfo(T).@"struct".fields.len;
     const base = "CREATE TABLE ".len + " (".len + ");".len + table_name.len;

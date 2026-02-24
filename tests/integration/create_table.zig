@@ -25,7 +25,7 @@ test "create table from struct and verify sqlite_master" {
     defer a.free(qz);
 
     var stmt_opt: ?orm.raw.StmtHandle = null;
-    const rc_prep = orm.raw.stmt.prepareV2(db.handle, qz.ptr, -1, &stmt_opt);
+    const rc_prep = orm.raw.stmt.prepare(db.handle, qz.ptr, -1, &stmt_opt);
     try std.testing.expectEqual(orm.raw.SQLITE_OK, rc_prep);
     const stmt = stmt_opt.?;
     defer _ = orm.raw.stmt.finalize(stmt);

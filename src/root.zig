@@ -15,7 +15,7 @@ pub const diag = internal.diag;
 
 /// ORM mapper utilities (insert/update/find...).
 pub const mapper = @import("orm/mapper.zig");
-/// Core types such as Text/Blob/UnixMillis.
+/// Core types such as OwnedText/OwnedBlob/EpochMillis.
 pub const types = internal.types;
 /// Struct metadata helpers.
 pub const meta = internal.meta;
@@ -24,5 +24,5 @@ pub const sqlutil = internal.sqlutil;
 /// Schema generation helpers.
 pub const schema = @import("orm/schema.zig");
 
-/// Owned wrapper for mapper allocations.
-pub const Owned = mapper.Owned;
+/// OwnedRow wrapper for mapper allocations.
+pub const OwnedRow = mapper.OwnedRow;

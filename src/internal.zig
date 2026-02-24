@@ -12,7 +12,7 @@ pub const StepResult = @import("db/stmt.zig").StepResult;
 /// Diagnostics helpers for sqlite failures/binds.
 pub const diag = @import("db/diag.zig");
 
-/// Shared core types (Text/Blob/UnixMillis).
+/// Shared core types (OwnedText/OwnedBlob/EpochMillis).
 pub const types = @import("core/types.zig");
 /// Struct metadata helpers.
 pub const meta = @import("core/meta.zig");
