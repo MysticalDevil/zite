@@ -23,6 +23,20 @@ const zite = b.addModule("zite", .{
 zite.linkSystemLibrary("sqlite3", .{ .needed = true });
 ```
 
+## API Quick Reference
+
+| Area | Entry Point | Notes |
+| --- | --- | --- |
+| Database | `zite.Db.open` / `db.deinit` | Opens/closes a SQLite connection. |
+| Statements | `zite.Stmt.init` / `st.deinit` | Prepared statement wrapper. |
+| ORM insert | `zite.mapper.insert` | Returns last insert rowid. |
+| ORM update | `zite.mapper.update` | Returns rows changed. |
+| ORM find by id | `zite.mapper.findByIdOwned` | Returns `OwnedRow(T)` or `null`. |
+| ORM find one | `zite.mapper.findOne` | WHERE + params, returns `T` or `null`. |
+| ORM find many | `zite.mapper.findMany` | Iterates rows with `Rows(T)`. |
+| Schema | `zite.schema.createTableSqlFromMeta` | CREATE TABLE from `Meta`. |
+| Errors | `zite.errors.ZiteError` | Unified error set. |
+
 ## Quick Start (ORM)
 
 ```zig
@@ -130,6 +144,17 @@ specific errors (busy, constraint, io, etc.) where possible.
 - `examples/orm_meta_options.zig`
 - `examples/stmt_bind_all.zig`
 - `examples/stmt_basic.zig`
+
+### Run Examples
+
+The examples are standalone Zig files. Run them with a module mapping and
+link sqlite3:
+
+```sh
+zig run examples/orm_basic.zig -M zite=src/root.zig -lc -lsqlite3
+```
+
+See `examples/README.md` for more commands.
 
 ## Project Layout
 

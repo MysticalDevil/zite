@@ -48,3 +48,4 @@
 - `examples/orm_meta_options.zig` shows `Meta` options (rename/skip/unique).
 - `examples/stmt_bind_all.zig` shows `bindAll` with typed params.
 - `examples/stmt_basic.zig` shows direct statement usage.
+- `examples/README.md` documents how to run the examples.
