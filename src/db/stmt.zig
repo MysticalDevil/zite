@@ -3,6 +3,7 @@ const raw = @import("../raw/sqlite3.zig");
 const types = @import("../core/types.zig");
 const diag = @import("diag.zig");
 const errors = @import("../core/errors.zig");
+const sqlite_errors = @import("sqlite_errors.zig");
 
 const Db = @import("db.zig").Db;
 const db_ok = raw.SQLITE_OK;
@@ -28,7 +29,7 @@ pub const Stmt = struct {
         );
         if (rc != db_ok or stmt_opt == null) {
             diag.logSqlite(db, rc, "sqlite3_prepare_v2", sql);
-            return error.SqlitePrepareFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqlitePrepareFailed);
         }
 
         return .{ .db = db, .stmt = stmt_opt.? };
@@ -45,13 +46,13 @@ pub const Stmt = struct {
     pub fn reset(self: *Self) errors.ZiteError!void {
         const rc = raw.sqlite3_reset(self.stmt);
         if (rc != db_ok)
-            return error.SqliteResetFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteResetFailed);
     }
 
     pub fn clearbindings(self: *Self) errors.ZiteError!void {
         const rc = raw.sqlite3_clear_bindings(self.stmt);
         if (rc != db_ok)
-            return error.SqliteClearBindingsFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteClearBindingsFailed);
     }
 
     pub fn step(self: *Stmt) errors.ZiteError!StepResult {
@@ -61,7 +62,7 @@ pub const Stmt = struct {
             raw.SQLITE_DONE => .done,
             else => blk: {
                 diag.logSqlite(self.db, rc, "sqlite3_step", null);
-                break :blk error.SqliteStepFailed;
+                break :blk sqlite_errors.mapSqliteRc(rc, error.SqliteStepFailed);
             },
         };
     }
@@ -72,7 +73,7 @@ pub const Stmt = struct {
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_null", null);
             diag.logBind("null", idx);
-            return error.SqliteBindFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
         }
     }
 
@@ -81,7 +82,7 @@ pub const Stmt = struct {
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_int64", null);
             diag.logBind("int64", idx);
-            return error.SqliteBindFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
         }
     }
 
@@ -90,7 +91,7 @@ pub const Stmt = struct {
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_double", null);
             diag.logBind("double", idx);
-            return error.SqliteBindFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
         }
     }
 
@@ -99,7 +100,7 @@ pub const Stmt = struct {
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_int", null);
             diag.logBind("int", idx);
-            return error.SqliteBindFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
         }
     }
 
@@ -109,7 +110,7 @@ pub const Stmt = struct {
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_text", null);
             diag.logBind("text", idx);
-            return error.SqliteBindFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
         }
     }
 
@@ -119,7 +120,7 @@ pub const Stmt = struct {
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_blob", null);
             diag.logBind("blob", idx);
-            return error.SqliteBindFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
         }
     }
 

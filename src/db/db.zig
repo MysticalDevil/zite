@@ -2,6 +2,7 @@ const std = @import("std");
 const raw = @import("../raw/sqlite3.zig");
 const diag = @import("diag.zig");
 const errors = @import("../core/errors.zig");
+const sqlite_errors = @import("sqlite_errors.zig");
 
 pub const Db = struct {
     allocator: std.mem.Allocator,
@@ -23,7 +24,7 @@ pub const Db = struct {
             } else {
                 std.log.warn("sqlite failure what=sqlite3_open rc={} msg=handle_null", .{rc});
             }
-            return error.SqliteOpenFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteOpenFailed);
         }
 
         return .{ .allocator = allocator, .handle = db_ptr.? };
@@ -48,7 +49,7 @@ pub const Db = struct {
 
         if (rc != raw.SQLITE_OK) {
             diag.logSqlite(self, rc, "sqlite3_exec", sql);
-            return error.SqliteExecFailed;
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteExecFailed);
         }
     }
 

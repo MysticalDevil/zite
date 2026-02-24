@@ -52,7 +52,7 @@ test "errmsg: step runtime error provides message" {
         var st2 = try orm.Stmt.init(&db, "INSERT INTO users(name) VALUES (?1);");
         defer st2.deinit();
         try st2.bindOne(1, "alice");
-        try std.testing.expectError(error.SqliteStepFailed, st2.step());
+        try std.testing.expectError(error.SqliteConstraint, st2.step());
     }
 
     const msg = db.errmsg();
@@ -72,7 +72,7 @@ test "errmsg: bind out-of-range provides message" {
     defer st.deinit();
 
     const r = st.bindOne(2, @as(i64, 1));
-    try std.testing.expectError(error.SqliteBindFailed, r);
+    try std.testing.expectError(error.SqliteRange, r);
 
     const msg = db.errmsg();
     try std.testing.expect(msg.len != 0);

@@ -23,7 +23,7 @@ test "expected error: Stmt.init invalid SQL retures SqlitePrepareFailed" {
     try std.testing.expectError(error.SqlitePrepareFailed, orm.Stmt.init(&db, "SELECT FROM ;"));
 }
 
-test "expected error: Stmt.bindOne out-of-range index returns SqliteBindFailed" {
+test "expected error: Stmt.bindOne out-of-range index returns SqliteRange" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -34,10 +34,10 @@ test "expected error: Stmt.bindOne out-of-range index returns SqliteBindFailed" 
     var st = try orm.Stmt.init(&db, "SELECT ?1;");
     defer st.deinit();
 
-    try std.testing.expectError(error.SqliteBindFailed, st.bindOne(2, @as(i64, 1)));
+    try std.testing.expectError(error.SqliteRange, st.bindOne(2, @as(i64, 1)));
 }
 
-test "expected error: Stmt.step SQL runtime error returns SqliteStepFailed" {
+test "expected error: Stmt.step SQL runtime error returns SqliteConstraint" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -63,6 +63,6 @@ test "expected error: Stmt.step SQL runtime error returns SqliteStepFailed" {
         var st2 = try orm.Stmt.init(&db, "INSERT INTO users(name) VALUES (?1);");
         defer st2.deinit();
         try st2.bindOne(1, "alice");
-        try std.testing.expectError(error.SqliteStepFailed, st2.step());
+        try std.testing.expectError(error.SqliteConstraint, st2.step());
     }
 }
