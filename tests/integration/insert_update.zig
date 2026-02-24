@@ -53,7 +53,8 @@ test "mapper.insert + mapper.update: roundtrip" {
     const r1 = try st.step();
     try std.testing.expectEqual(orm.StepResult.row, r1);
 
-    const name = st.colText(0).?;
+    const name = (try st.colTextOwned(a, 0)).?;
+    defer a.free(name);
     try std.testing.expectEqualStrings("alice2", name);
     try std.testing.expectEqual(@as(i64, 42), st.colInt(1));
 

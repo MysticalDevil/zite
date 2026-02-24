@@ -203,27 +203,6 @@ pub const Stmt = struct {
         return raw.stmt.columnDouble(self.stmt, col);
     }
 
-    /// NOTE: The returned slice points to an internal SQLite buffer; it may become invalid after the next step/reset/finalize operation.
-    pub fn colText(self: *Self, col: i32) ?[]const u8 {
-        const p = raw.stmt.columnText(self.stmt, col);
-        if (p == null)
-            return null;
-        const n = raw.stmt.columnBytes(self.stmt, col);
-        const len: usize = @intCast(n);
-        const bytes: [*]const u8 = @ptrCast(p);
-        return bytes[0..len];
-    }
-
-    pub fn colBlob(self: *Self, col: i32) ?[]const u8 {
-        const p = raw.stmt.columnBlob(self.stmt, col);
-        if (p == null)
-            return null;
-        const n = raw.stmt.columnBytes(self.stmt, col);
-        const len: usize = @intCast(n);
-        const bytes: [*]const u8 = @ptrCast(p);
-        return bytes[0..len];
-    }
-
     pub fn colIsNull(self: *Self, col: i32) bool {
         return raw.stmt.columnType(self.stmt, col) == raw.SQLITE_NULL;
     }

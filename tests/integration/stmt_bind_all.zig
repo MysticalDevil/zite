@@ -25,10 +25,11 @@ test "Stmt.bindAll: binds int/text/null and reads them back" {
 
     try std.testing.expectEqual(@as(i64, 42), st.colInt(0));
 
-    const b = st.colText(1).?;
+    const b = (try st.colTextOwned(a, 1)).?;
+    defer a.free(b);
     try std.testing.expectEqualStrings("zig", b);
 
-    try std.testing.expect(st.colText(2) == null);
+    try std.testing.expect((try st.colTextOwned(a, 2)) == null);
 
     const r2 = try st.step();
     try std.testing.expectEqual(orm.StepResult.done, r2);
