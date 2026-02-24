@@ -1,7 +1,9 @@
 const std = @import("std");
-const meta = @import("../core/meta.zig");
-const sqlutil = @import("../core/sqlutil.zig");
-const types = @import("../core/types.zig");
+const internal = @import("../internal.zig");
+
+const meta = internal.meta;
+const sqlutil = internal.sqlutil;
+const types = internal.types;
 
 pub const CreateTableOptions = struct {
     table_name: []const u8,
