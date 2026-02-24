@@ -1,10 +1,11 @@
 const std = @import("std");
 const meta = @import("meta.zig");
+const errors = @import("errors.zig");
 
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList(u8);
 
-pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) Allocator.Error!void {
+pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) errors.ZiteError!void {
     try list.append(gpa, '"');
     for (name) |ch| {
         if (ch == '"') {
@@ -16,7 +17,7 @@ pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) Allocator.
     try list.append(gpa, '"');
 }
 
-pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize) Allocator.Error!void {
+pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize) errors.ZiteError!void {
     comptime var i: usize = 1;
     inline while (i <= count) : (i += 1) {
         if (i != 1) try list.appendSlice(gpa, ", ");
@@ -25,7 +26,7 @@ pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize
     }
 }
 
-pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) Allocator.Error!void {
+pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("writeInsertColumnList expects a struct type");
     const fields = ti.@"struct".fields;
@@ -41,7 +42,7 @@ pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type,
     }
 }
 
-pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) Allocator.Error!void {
+pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("writeUpdateSetClause expects a struct type");
     const fields = ti.@"struct".fields;
