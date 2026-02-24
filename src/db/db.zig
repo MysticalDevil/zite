@@ -63,7 +63,7 @@ pub const Db = struct {
         return raw.db.lastInsertRowId(self.handle);
     }
 
-    pub fn changes(self: *Self) c_int {
+    pub fn changes(self: *Self) i32 {
         return raw.db.changes(self.handle);
     }
 };

@@ -19,7 +19,7 @@ fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " + m.primary_key);
 }
 
-fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: c_int) errors.ZiteError!FieldT {
+fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: i32) errors.ZiteError!FieldT {
     if (FieldT == types.UnixMillis) {
         return .{ .value = st.colInt(col) };
     }
@@ -98,7 +98,7 @@ pub fn Rows(comptime T: type) type {
 
             comptime var col: usize = 0;
             inline for (fields) |f| {
-                const v = try readValue(f.type, &self.st, self.allocator, @as(c_int, @intCast(col)));
+                const v = try readValue(f.type, &self.st, self.allocator, @as(i32, @intCast(col)));
                 @field(out, f.name) = v;
                 col += 1;
             }
@@ -152,7 +152,7 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     defer st.deinit();
 
     const fields = ti.@"struct".fields;
-    var bind_i: c_int = 1;
+    var bind_i: i32 = 1;
 
     inline for (fields) |f| {
         const skip = comptime (m.skip_primary_key_on_insert and meta.isPk(f.name, m.primary_key));
@@ -168,7 +168,7 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     return db.lastInsertRowId();
 }
 
-pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!c_int {
+pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("update expects a struct type");
 
@@ -203,7 +203,7 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!c_int {
     defer st.deinit();
 
     const fields = ti.@"struct".fields;
-    var bind_i: c_int = 1;
+    var bind_i: i32 = 1;
 
     inline for (fields) |f| {
         if (comptime meta.isPk(f.name, m.primary_key)) continue;
@@ -266,7 +266,7 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
 
     comptime var col: usize = 0;
     inline for (fields) |f| {
-        const v = try readValue(f.type, &st, allocator, @as(c_int, @intCast(col)));
+        const v = try readValue(f.type, &st, allocator, @as(i32, @intCast(col)));
         @field(out, f.name) = v;
         col += 1;
     }
@@ -333,7 +333,7 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
 
     comptime var col: usize = 0;
     inline for (fields) |f| {
-        const v = try readValue(f.type, &st, allocator, @as(c_int, @intCast(col)));
+        const v = try readValue(f.type, &st, allocator, @as(i32, @intCast(col)));
         @field(out, f.name) = v;
         col += 1;
     }

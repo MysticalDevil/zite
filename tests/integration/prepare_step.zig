@@ -40,7 +40,7 @@ test "prepare_v2 + step: verify users table exists via sqlite_master" {
 
     // Step 5: Read column 0 (SELECT 1), should be 1
     const v = orm.raw.stmt.columnInt(stmt, 0);
-    try std.testing.expectEqual(@as(c_int, 1), v);
+    try std.testing.expectEqual(@as(i32, 1), v);
 
     // Step 6: Step once more -> SQLITE_DONE
     const rc_step2 = orm.raw.stmt.step(stmt);

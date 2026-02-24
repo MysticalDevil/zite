@@ -1,7 +1,7 @@
-const raw = @import("../raw/sqlite3.zig");
+const raw = @import("../raw/mod.zig");
 const errors = @import("../core/errors.zig");
 
-pub fn mapSqliteRc(rc: c_int, fallback: errors.ZiteError) errors.ZiteError {
+pub fn mapSqliteRc(rc: i32, fallback: errors.ZiteError) errors.ZiteError {
     return switch (rc) {
         raw.SQLITE_BUSY => error.SqliteBusy,
         raw.SQLITE_CONSTRAINT => error.SqliteConstraint,

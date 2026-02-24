@@ -53,7 +53,7 @@ test "mapper.getById: insert -> getById -> update -> getById" {
     u.age = 42;
 
     const changed = try orm.mapper.update(User, &db, u);
-    try std.testing.expectEqual(@as(c_int, 1), changed);
+    try std.testing.expectEqual(@as(i32, 1), changed);
 
     var got2 = (try orm.mapper.getById(User, &db, a, new_id)).?;
     defer freeUser(a, &got2);

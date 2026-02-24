@@ -19,7 +19,7 @@ pub const Stmt = struct {
     pub fn init(db: *Db, sql: []const u8) errors.ZiteError!Self {
         var stmt_opt: ?raw.StmtHandle = null;
 
-        const n: c_int = @intCast(sql.len);
+        const n: i32 = @intCast(sql.len);
         const rc = raw.stmt.prepareV2(
             db.handle,
             sql.ptr,
@@ -67,7 +67,7 @@ pub const Stmt = struct {
     }
 
     // ---------- bind (1-based index) ----------
-    pub fn bindNull(self: *Self, idx: c_int) errors.ZiteError!void {
+    pub fn bindNull(self: *Self, idx: i32) errors.ZiteError!void {
         const rc = raw.stmt.bindNull(self.stmt, idx);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_null", null);
@@ -76,7 +76,7 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindInt(self: *Self, idx: c_int, value: i64) errors.ZiteError!void {
+    pub fn bindInt(self: *Self, idx: i32, value: i64) errors.ZiteError!void {
         const rc = raw.stmt.bindInt64(self.stmt, idx, value);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_int64", null);
@@ -85,7 +85,7 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindFloat(self: *Self, idx: c_int, value: f64) errors.ZiteError!void {
+    pub fn bindFloat(self: *Self, idx: i32, value: f64) errors.ZiteError!void {
         const rc = raw.stmt.bindDouble(self.stmt, idx, @as(f64, @floatCast(value)));
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_double", null);
@@ -94,7 +94,7 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindBool(self: *Self, idx: c_int, value: bool) errors.ZiteError!void {
+    pub fn bindBool(self: *Self, idx: i32, value: bool) errors.ZiteError!void {
         const rc = raw.stmt.bindInt(self.stmt, idx, if (value) 1 else 0);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_int", null);
@@ -103,8 +103,8 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindText(self: *Self, idx: c_int, value: []const u8) errors.ZiteError!void {
-        const n: c_int = @intCast(value.len);
+    pub fn bindText(self: *Self, idx: i32, value: []const u8) errors.ZiteError!void {
+        const n: i32 = @intCast(value.len);
         const rc = raw.stmt.bindText(self.stmt, idx, value.ptr, n);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_text", null);
@@ -113,8 +113,8 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindBlob(self: *Self, idx: c_int, value: []const u8) errors.ZiteError!void {
-        const n: c_int = @intCast(value.len);
+    pub fn bindBlob(self: *Self, idx: i32, value: []const u8) errors.ZiteError!void {
+        const n: i32 = @intCast(value.len);
         const rc = raw.stmt.bindBlob(self.stmt, idx, value.ptr, n);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_blob", null);
@@ -124,7 +124,7 @@ pub const Stmt = struct {
     }
 
     /// General Binding: Supports int/uint/bool/float/enum/[]const u8/[]u8/optional(?T)
-    pub fn bindOne(self: *Self, idx: c_int, value: anytype) errors.ZiteError!void {
+    pub fn bindOne(self: *Self, idx: i32, value: anytype) errors.ZiteError!void {
         const T = @TypeOf(value);
 
         if (T == types.UnixMillis) {
@@ -189,25 +189,25 @@ pub const Stmt = struct {
         const s = ti.@"struct";
         inline for (s.fields, 0..) |f, i| {
             const v = @field(params, f.name);
-            try self.bindOne(@as(c_int, @intCast(i + 1)), v);
+            try self.bindOne(@as(i32, @intCast(i + 1)), v);
         }
     }
 
     // --------- column (0-based index, valid when setp()==.row) ----------
-    pub fn colInt(self: *Self, col: c_int) i64 {
+    pub fn colInt(self: *Self, col: i32) i64 {
         return raw.stmt.columnInt64(self.stmt, col);
     }
 
-    pub fn colBool(self: *Self, col: c_int) bool {
+    pub fn colBool(self: *Self, col: i32) bool {
         return raw.stmt.columnInt(self.stmt, col) != 0;
     }
 
-    pub fn colDouble(self: *Stmt, col: c_int) f64 {
+    pub fn colDouble(self: *Stmt, col: i32) f64 {
         return raw.stmt.columnDouble(self.stmt, col);
     }
 
     /// NOTE: The returned slice points to an internal SQLite buffer; it may become invalid after the next step/reset/finalize operation.
-    pub fn colText(self: *Self, col: c_int) ?[]const u8 {
+    pub fn colText(self: *Self, col: i32) ?[]const u8 {
         const p = raw.stmt.columnText(self.stmt, col);
         if (p == null)
             return null;
@@ -217,7 +217,7 @@ pub const Stmt = struct {
         return bytes[0..len];
     }
 
-    pub fn colBlob(self: *Self, col: c_int) ?[]const u8 {
+    pub fn colBlob(self: *Self, col: i32) ?[]const u8 {
         const p = raw.stmt.columnBlob(self.stmt, col);
         if (p == null)
             return null;
@@ -227,11 +227,11 @@ pub const Stmt = struct {
         return bytes[0..len];
     }
 
-    pub fn colIsNull(self: *Self, col: c_int) bool {
+    pub fn colIsNull(self: *Self, col: i32) bool {
         return raw.stmt.columnType(self.stmt, col) == raw.SQLITE_NULL;
     }
 
-    pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: c_int) errors.ZiteError!?[]u8 {
+    pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
         const p = raw.stmt.columnText(self.stmt, col);
         if (p == null) return null;
 
@@ -244,7 +244,7 @@ pub const Stmt = struct {
         return out;
     }
 
-    pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: c_int) errors.ZiteError!?[]u8 {
+    pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
         const p = raw.stmt.columnBlob(self.stmt, col);
         if (p == null) return null;
 

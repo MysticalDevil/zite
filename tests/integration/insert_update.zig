@@ -39,7 +39,7 @@ test "mapper.insert + mapper.update: roundtrip" {
     u.age = 42;
 
     const changed = try orm.mapper.update(User, &db, u);
-    try std.testing.expectEqual(@as(c_int, 1), changed);
+    try std.testing.expectEqual(@as(i32, 1), changed);
 
     var st = try orm.Stmt.init(&db, "SELECT name, age FROM users WHERE id=?1 LIMIT 1;");
     defer st.deinit();
