@@ -13,10 +13,12 @@ pub const StepResult = enum { row, done };
 pub const Stmt = struct {
     db: *Db,
     stmt: raw.StmtHandle,
+    /// Prevents double-finalize and enables Db tracking.
     finalized: bool = false,
 
     const Self = @This();
 
+    /// Prepares a SQL statement. Must be finalized when no longer used.
     pub fn init(db: *Db, sql: []const u8) errors.ZiteError!Self {
         var stmt_opt: ?raw.StmtHandle = null;
 
@@ -36,6 +38,7 @@ pub const Stmt = struct {
         return .{ .db = db, .stmt = stmt_opt.? };
     }
 
+    /// Finalizes the underlying SQLite statement (idempotent).
     pub fn finalize(self: *Self) void {
         if (self.finalized) return;
         _ = raw.stmt.finalize(self.stmt);
@@ -43,6 +46,7 @@ pub const Stmt = struct {
         self.db.unregisterStmt();
     }
 
+    /// Alias for finalize() to match deinit patterns.
     pub fn deinit(self: *Self) void {
         self.finalize();
     }
@@ -59,6 +63,7 @@ pub const Stmt = struct {
             return sqlite_errors.mapSqliteRc(rc, error.SqliteClearBindingsFailed);
     }
 
+    /// Steps the statement. Returns .row for a row, .done when complete.
     pub fn step(self: *Stmt) errors.ZiteError!StepResult {
         const rc = raw.stmt.step(self.stmt);
         return switch (rc) {
@@ -129,6 +134,7 @@ pub const Stmt = struct {
     }
 
     /// General Binding: Supports int/uint/bool/float/enum/[]const u8/[]u8/optional(?T)
+    /// plus types.Text/types.Blob and types.UnixMillis.
     pub fn bindOne(self: *Self, idx: i32, value: anytype) errors.ZiteError!void {
         const T = @TypeOf(value);
 
@@ -236,6 +242,7 @@ pub const Stmt = struct {
         return raw.stmt.columnType(self.stmt, col) == raw.SQLITE_NULL;
     }
 
+    /// Returns an owned copy of TEXT data (caller frees with allocator).
     pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
         const p = raw.stmt.columnText(self.stmt, col);
         if (p == null) return null;
@@ -249,6 +256,7 @@ pub const Stmt = struct {
         return out;
     }
 
+    /// Returns an owned copy of BLOB data (caller frees with allocator).
     pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
         const p = raw.stmt.columnBlob(self.stmt, col);
         if (p == null) return null;

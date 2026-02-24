@@ -9,38 +9,47 @@ pub const SqlBuilder = struct {
     list: *ArrayList,
     gpa: Allocator,
 
+    /// Initializes a builder that appends into the provided ArrayList.
     pub fn init(list: *ArrayList, gpa: Allocator) SqlBuilder {
         return .{ .list = list, .gpa = gpa };
     }
 
+    /// Reserves additional capacity to reduce reallocations.
     pub fn reserve(self: *SqlBuilder, extra: usize) errors.ZiteError!void {
         try self.list.ensureUnusedCapacity(self.gpa, extra);
     }
 
+    /// Appends a literal SQL fragment.
     pub fn lit(self: *SqlBuilder, s: []const u8) errors.ZiteError!void {
         try self.list.appendSlice(self.gpa, s);
     }
 
+    /// Appends a single byte.
     pub fn byte(self: *SqlBuilder, b: u8) errors.ZiteError!void {
         try self.list.append(self.gpa, b);
     }
 
+    /// Appends formatted text.
     pub fn print(self: *SqlBuilder, comptime fmt: []const u8, args: anytype) errors.ZiteError!void {
         try self.list.print(self.gpa, fmt, args);
     }
 
+    /// Appends an escaped SQL identifier.
     pub fn ident(self: *SqlBuilder, name: []const u8) errors.ZiteError!void {
         try writeIdent(self.list, self.gpa, name);
     }
 
+    /// Appends numbered placeholders (?1, ?2, ...).
     pub fn placeholders(self: *SqlBuilder, comptime count: usize) errors.ZiteError!void {
         try writePlaceholders(self.list, self.gpa, count);
     }
 
+    /// Appends insertable column list (skipping PK when configured).
     pub fn insertColumnList(self: *SqlBuilder, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
         try writeInsertColumnList(self.list, self.gpa, T, m);
     }
 
+    /// Appends "col1=?1, col2=?2, ..." update set clause.
     pub fn updateSetClause(self: *SqlBuilder, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
         try writeUpdateSetClause(self.list, self.gpa, T, m);
     }

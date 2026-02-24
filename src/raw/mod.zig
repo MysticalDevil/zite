@@ -20,5 +20,6 @@ pub const SQLITE_NOMEM: Rc = @intCast(sqlite.SQLITE_NOMEM);
 pub const DbHandle = sqlite.DbHandle;
 pub const StmtHandle = sqlite.StmtHandle;
 
+/// Low-level DB/Stmt helpers; avoid direct C API usage outside raw/.
 pub const db = @import("db.zig");
 pub const stmt = @import("stmt.zig");

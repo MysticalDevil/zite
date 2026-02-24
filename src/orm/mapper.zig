@@ -73,6 +73,7 @@ pub fn Rows(comptime T: type) type {
 
         const Self = @This();
 
+        /// Finalizes the underlying statement if iteration is not complete.
         pub fn deinit(self: *Self) void {
             if (!self.done) {
                 self.st.deinit();
@@ -80,6 +81,8 @@ pub fn Rows(comptime T: type) type {
             }
         }
 
+        /// Returns the next row or null when complete. On error, finalizes
+        /// the statement to avoid leaks.
         pub fn next(self: *Self) errors.ZiteError!?T {
             if (self.done) return null;
 
@@ -235,8 +238,8 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     return db.changes();
 }
 
-/// SELECT *by pk*, return ?T; if it contains TEXT slice fields, they will be allocated
-/// on the allocator, and the caller is responsible for freeing them.
+    /// SELECT *by pk*, return ?T; if it contains TEXT/BLOB fields, they will be allocated
+    /// on the allocator, and the caller is responsible for freeing them.
 pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?T {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("getById expects a struct type");
@@ -368,6 +371,7 @@ pub fn findOneOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.
     return null;
 }
 
+/// Wrapper that frees owned TEXT/BLOB fields via deinit().
 pub fn Owned(comptime T: type) type {
     return struct {
         allocator: std.mem.Allocator,

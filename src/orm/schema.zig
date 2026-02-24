@@ -7,13 +7,18 @@ const types = internal.types;
 const errors = internal.errors;
 
 pub const CreateTableOptions = struct {
+    /// Table name used in CREATE TABLE.
     table_name: []const u8,
+    /// Adds IF NOT EXISTS to CREATE TABLE.
     if_not_exists: bool = true,
 
+    /// Primary key column name (null to disable).
     primary_key: ?[]const u8 = "id",
 
+    /// Adds AUTOINCREMENT to integer primary keys.
     autoincrement: bool = true,
 
+    /// Adds NOT NULL to non-optional fields.
     not_null_by_default: bool = true,
 };
 
