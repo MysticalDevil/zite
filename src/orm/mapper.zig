@@ -1,13 +1,11 @@
 const std = @import("std");
-const internal = @import("../internal.zig");
+const Db = @import("../db/db.zig").Db;
+const Stmt = @import("../db/stmt.zig").Stmt;
+const types = @import("../core/types.zig");
 
-const Db = internal.Db;
-const Stmt = internal.Stmt;
-const types = internal.types;
-
-const meta = internal.meta;
-const sqlutil = internal.sqlutil;
-const errors = internal.errors;
+const meta = @import("../core/meta.zig");
+const sqlutil = @import("../core/sqlutil.zig");
+const errors = @import("../core/errors.zig");
 
 fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     const ti = @typeInfo(T);

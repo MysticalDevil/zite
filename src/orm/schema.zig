@@ -1,10 +1,8 @@
 const std = @import("std");
-const internal = @import("../internal.zig");
-
-const meta = internal.meta;
-const sqlutil = internal.sqlutil;
-const types = internal.types;
-const errors = internal.errors;
+const meta = @import("../core/meta.zig");
+const sqlutil = @import("../core/sqlutil.zig");
+const types = @import("../core/types.zig");
+const errors = @import("../core/errors.zig");
 
 /// Options that control CREATE TABLE generation.
 pub const CreateTableOptions = struct {
