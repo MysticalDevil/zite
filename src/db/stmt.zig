@@ -60,6 +60,7 @@ pub const Stmt = struct {
         self.finalize();
     }
 
+    /// Resets the statement so it can be re-executed.
     pub fn reset(self: *Self) errors.ZiteError!void {
         const rc = raw.stmt.reset(self.stmt);
         if (rc != db_ok) {
@@ -82,6 +83,7 @@ pub const Stmt = struct {
     }
 
     // ---------- bind (1-based index) ----------
+    /// Binds NULL to a 1-based parameter index.
     pub fn bindNull(self: *Self, idx: i32) errors.ZiteError!void {
         const rc = raw.stmt.bindNull(self.stmt, idx);
         if (rc != db_ok) {
@@ -91,6 +93,7 @@ pub const Stmt = struct {
         }
     }
 
+    /// Binds an integer to a 1-based parameter index.
     pub fn bindInt(self: *Self, idx: i32, value: i64) errors.ZiteError!void {
         const rc = raw.stmt.bindInt64(self.stmt, idx, value);
         if (rc != db_ok) {
@@ -100,6 +103,7 @@ pub const Stmt = struct {
         }
     }
 
+    /// Binds a double to a 1-based parameter index.
     pub fn bindFloat(self: *Self, idx: i32, value: f64) errors.ZiteError!void {
         const rc = raw.stmt.bindDouble(self.stmt, idx, @as(f64, @floatCast(value)));
         if (rc != db_ok) {
@@ -109,6 +113,7 @@ pub const Stmt = struct {
         }
     }
 
+    /// Binds a boolean to a 1-based parameter index.
     pub fn bindBool(self: *Self, idx: i32, value: bool) errors.ZiteError!void {
         const rc = raw.stmt.bindInt(self.stmt, idx, if (value) 1 else 0);
         if (rc != db_ok) {
@@ -118,6 +123,7 @@ pub const Stmt = struct {
         }
     }
 
+    /// Binds a UTF-8 string to a 1-based parameter index.
     pub fn bindText(self: *Self, idx: i32, value: []const u8) errors.ZiteError!void {
         const n: i32 = @intCast(value.len);
         const rc = raw.stmt.bindText(self.stmt, idx, value.ptr, n);
@@ -128,6 +134,7 @@ pub const Stmt = struct {
         }
     }
 
+    /// Binds a blob to a 1-based parameter index.
     pub fn bindBlob(self: *Self, idx: i32, value: []const u8) errors.ZiteError!void {
         const n: i32 = @intCast(value.len);
         const rc = raw.stmt.bindBlob(self.stmt, idx, value.ptr, n);
@@ -186,19 +193,23 @@ pub const Stmt = struct {
         }
     }
 
-    // --------- column (0-based index, valid when setp()==.row) ----------
+    // --------- column (0-based index, valid when step()==.row) ----------
+    /// Reads an integer column value.
     pub fn colInt(self: *Self, col: i32) i64 {
         return raw.stmt.columnInt64(self.stmt, col);
     }
 
+    /// Reads a boolean column value (0/1).
     pub fn colBool(self: *Self, col: i32) bool {
         return raw.stmt.columnInt(self.stmt, col) != 0;
     }
 
+    /// Reads a double column value.
     pub fn colDouble(self: *Stmt, col: i32) f64 {
         return raw.stmt.columnDouble(self.stmt, col);
     }
 
+    /// Returns true if the column is NULL.
     pub fn colIsNull(self: *Self, col: i32) bool {
         return raw.stmt.columnType(self.stmt, col) == raw.SQLITE_NULL;
     }

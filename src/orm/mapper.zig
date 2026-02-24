@@ -118,10 +118,12 @@ pub fn RowsOwned(comptime T: type) type {
 
         const Self = @This();
 
+        /// Finalizes the underlying statement if iteration is not complete.
         pub fn deinit(self: *Self) void {
             self.rows.deinit();
         }
 
+        /// Returns the next owned row or null when complete.
         pub fn next(self: *Self) errors.ZiteError!?OwnedRow(T) {
             if (try self.rows.next()) |v| {
                 return wrapOwnedRow(T, self.rows.allocator, v);
@@ -399,6 +401,7 @@ pub fn OwnedRow(comptime T: type) type {
 
         const Self = @This();
 
+        /// Frees owned TEXT/BLOB fields for the row.
         pub fn deinit(self: *Self) void {
             freeOwnedRow(T, self.allocator, &self.value);
         }

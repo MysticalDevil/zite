@@ -15,6 +15,7 @@ pub const Db = struct {
 
     const Self = @This();
 
+    /// Opens a SQLite database at the provided path.
     pub fn open(allocator: std.mem.Allocator, path: []const u8) errors.ZiteError!Self {
         const path_z = try allocator.dupeZ(u8, path);
         defer allocator.free(path_z);
