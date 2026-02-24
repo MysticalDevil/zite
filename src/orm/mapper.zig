@@ -5,8 +5,8 @@ const Db = root.Db;
 const Stmt = root.Stmt;
 const types = root.types;
 
-const meta = @import("meta.zig");
-const sqlutil = @import("sqlutil.zig");
+const meta = @import("../core/meta.zig");
+const sqlutil = @import("../core/sqlutil.zig");
 
 fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     const ti = @typeInfo(T);

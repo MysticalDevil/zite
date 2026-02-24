@@ -1,6 +1,6 @@
 const std = @import("std");
 const raw = @import("../raw/sqlite3.zig");
-const types = @import("../types.zig");
+const types = @import("../core/types.zig");
 const diag = @import("diag.zig");
 
 const Db = @import("db.zig").Db;
