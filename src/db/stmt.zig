@@ -9,7 +9,12 @@ const Db = @import("db.zig").Db;
 const db_ok = raw.SQLITE_OK;
 
 /// Result of stepping a statement.
-pub const StepResult = enum { row, done };
+pub const StepResult = enum {
+    /// A row is available to read.
+    row,
+    /// No more rows are available.
+    done,
+};
 
 /// Prepared statement wrapper for sqlite3_stmt.
 pub const Stmt = struct {
