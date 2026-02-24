@@ -71,11 +71,13 @@ test "owned: empty text is released without leaks" {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    const id = try orm.mapper.insert(User, &db, .{ .id = 0, .name = "", .age = null });
-    if (try orm.mapper.getByIdOwned(User, &db, a, id)) |owned| {
+    var empty = try orm.types.OwnedText.fromConst(a, "");
+    defer empty.deinit(a);
+    const id = try orm.mapper.insert(User, &db, .{ .id = 0, .name = empty, .age = null });
+    if (try orm.mapper.findByIdOwned(User, &db, a, id)) |owned| {
         var o = owned;
         defer o.deinit();
-        try std.testing.expectEqual(@as(usize, 0), o.value.name.len);
+        try std.testing.expectEqual(@as(usize, 0), o.value.name.value.len);
     } else {
         return error.TestExpectedRow;
     }

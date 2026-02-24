@@ -71,7 +71,7 @@ test "expected error: Stmt.step SQL runtime error returns SqliteConstraint" {
     }
 }
 
-test "expected error: operations after close return DbClosed" {
+test "expected error: operations after close return SqliteMisuse" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -80,6 +80,6 @@ test "expected error: operations after close return DbClosed" {
     db.close();
     db.close();
 
-    try std.testing.expectError(error.DbClosed, db.exec("SELECT 1;"));
-    try std.testing.expectError(error.DbClosed, orm.Stmt.init(&db, "SELECT 1;"));
+    try std.testing.expectError(error.SqliteMisuse, db.exec("SELECT 1;"));
+    try std.testing.expectError(error.SqliteMisuse, orm.Stmt.init(&db, "SELECT 1;"));
 }
