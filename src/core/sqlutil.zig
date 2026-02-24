@@ -173,3 +173,36 @@ pub fn estCreateTableLen(comptime T: type, table_name: []const u8) usize {
     const per_field_overhead = field_count * ("  ".len + " ".len + " NOT NULL".len + " PRIMARY KEY".len);
     return base + names_len + name_quotes + separators + per_field_overhead;
 }
+
+test "sqlutil insert/update clauses honor meta" {
+    const Sample = struct {
+        id: i64,
+        name: i64,
+        skip_me: i64,
+
+        pub const Meta = .{
+            .table = "samples",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+            .skip = &.{ "skip_me" },
+            .rename = &.{
+                .{ .field = "name", .column = "full_name" },
+            },
+        };
+    };
+
+    const gpa = std.testing.allocator;
+    const m = meta.getMeta(Sample);
+
+    var insert_buf: ArrayList = .empty;
+    defer insert_buf.deinit(gpa);
+    var insert_builder = SqlBuilder.init(&insert_buf, gpa);
+    try insert_builder.insertColumnList(Sample, m);
+    try std.testing.expectEqualStrings("\"full_name\"", insert_buf.items);
+
+    var update_buf: ArrayList = .empty;
+    defer update_buf.deinit(gpa);
+    var update_builder = SqlBuilder.init(&update_buf, gpa);
+    try update_builder.updateSetClause(Sample, m);
+    try std.testing.expectEqualStrings("\"full_name\"=?1", update_buf.items);
+}
