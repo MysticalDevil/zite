@@ -1,4 +1,4 @@
-/// Raw sqlite bindings and thin wrappers (db/stmt).
+/// Advanced API: raw sqlite bindings and thin wrappers (db/stmt).
 pub const raw = @import("raw/mod.zig");
 /// Unified error set for this library.
 pub const errors = @import("core/errors.zig");
@@ -15,9 +15,9 @@ pub const diag = @import("db/diag.zig");
 pub const mapper = @import("orm/mapper.zig");
 /// Core types such as OwnedText/OwnedBlob/EpochMillis.
 pub const types = @import("core/types.zig");
-/// Struct metadata helpers.
+/// Advanced API: struct metadata helpers.
 pub const meta = @import("core/meta.zig");
-/// SQL builder/utilities.
+/// Advanced API: SQL builder/utilities.
 pub const sqlutil = @import("core/sqlutil.zig");
 /// Schema generation helpers.
 pub const schema = @import("orm/schema.zig");
