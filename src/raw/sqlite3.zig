@@ -7,6 +7,7 @@ pub const sqlite3_stmt = c.sqlite3_stmt;
 
 pub const sqlite3_open = c.sqlite3_open;
 pub const sqlite3_close = c.sqlite3_close;
+pub const sqlite3_close_v2 = c.sqlite3_close_v2;
 pub const sqlite3_errmsg = c.sqlite3_errmsg;
 pub const sqlite3_free = c.sqlite3_free;
 

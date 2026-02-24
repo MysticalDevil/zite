@@ -29,7 +29,10 @@ pub const Db = struct {
     }
 
     pub fn close(self: *Self) void {
-        _ = raw.sqlite3_close(self.handle);
+        const rc = raw.sqlite3_close_v2(self.handle);
+        if (rc != raw.SQLITE_OK) {
+            diag.logSqlite(self, rc, "sqlite3_close_v2", null);
+        }
     }
 
     pub fn deinit(self: *Self) void {
