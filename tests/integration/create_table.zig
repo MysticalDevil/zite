@@ -14,7 +14,7 @@ test "create table from struct and verify sqlite_master" {
     const a = gpa.allocator();
 
     var db = try orm.Db.open(a, ":memory:");
-    defer db.close();
+    defer db.deinit();
 
     const sql = try orm.schema.createTableSql(a, User, .{ .table_name = "users" });
     defer a.free(sql);
