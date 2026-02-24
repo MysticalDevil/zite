@@ -3,7 +3,13 @@ const meta = @import("meta.zig");
 
 pub fn writeIdent(w: std.io.AnyWriter, name: []const u8) !void {
     try w.writeByte('"');
-    try w.writeAll(name);
+    for (name) |ch| {
+        if (ch == '"') {
+            try w.writeAll("\"\"");
+        } else {
+            try w.writeByte(ch);
+        }
+    }
     try w.writeByte('"');
 }
 
