@@ -125,6 +125,10 @@ specific errors (busy, constraint, io, etc.) where possible.
 ## Examples
 
 - `examples/orm_basic.zig`
+- `examples/orm_find_many.zig`
+- `examples/orm_find_one.zig`
+- `examples/orm_meta_options.zig`
+- `examples/stmt_bind_all.zig`
 - `examples/stmt_basic.zig`
 
 ## Project Layout

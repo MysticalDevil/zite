@@ -43,4 +43,8 @@
 
 ## Examples
 - `examples/orm_basic.zig` shows the ORM mapping flow with `OwnedText/OwnedBlob`.
+- `examples/orm_find_many.zig` shows `findMany` iteration.
+- `examples/orm_find_one.zig` shows `findOne` with parameters.
+- `examples/orm_meta_options.zig` shows `Meta` options (rename/skip/unique).
+- `examples/stmt_bind_all.zig` shows `bindAll` with typed params.
 - `examples/stmt_basic.zig` shows direct statement usage.
