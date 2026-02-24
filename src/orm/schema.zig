@@ -4,6 +4,7 @@ const internal = @import("../internal.zig");
 const meta = internal.meta;
 const sqlutil = internal.sqlutil;
 const types = internal.types;
+const errors = internal.errors;
 
 pub const CreateTableOptions = struct {
     table_name: []const u8,
@@ -66,15 +67,14 @@ fn isPrimaryKeyField(comptime field_name: []const u8, opts: CreateTableOptions) 
     return false;
 }
 
-pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: CreateTableOptions) ![]u8 {
+pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: CreateTableOptions) errors.ZiteError![]u8 {
     const info = @typeInfo(T);
     if (info != .@"struct") @compileError("createTableSql expects a struct type");
 
     var list: std.ArrayList(u8) = .empty;
     errdefer list.deinit(allocator);
 
-    const w0 = list.writer(allocator);
-    const w = w0.any();
+    const w = list.writer(allocator);
 
     try w.writeAll("CREATE TABLE ");
     if (opts.if_not_exists) try w.writeAll("IF NOT EXISTS ");
@@ -119,7 +119,7 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
     return try list.toOwnedSlice(allocator);
 }
 
-pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) ![]u8 {
+pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) errors.ZiteError![]u8 {
     const m = comptime meta.getMeta(T);
     return createTableSql(allocator, T, .{
         .table_name = m.table,

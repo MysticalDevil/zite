@@ -1,7 +1,7 @@
 const std = @import("std");
 const meta = @import("meta.zig");
 
-pub fn writeIdent(w: std.io.AnyWriter, name: []const u8) !void {
+pub fn writeIdent(w: anytype, name: []const u8) !void {
     try w.writeByte('"');
     for (name) |ch| {
         if (ch == '"') {
@@ -13,7 +13,7 @@ pub fn writeIdent(w: std.io.AnyWriter, name: []const u8) !void {
     try w.writeByte('"');
 }
 
-pub fn writePlaceholders(w: std.io.AnyWriter, comptime count: usize) !void {
+pub fn writePlaceholders(w: anytype, comptime count: usize) !void {
     comptime var i: usize = 1;
     inline while (i <= count) : (i += 1) {
         if (i != 1) try w.writeAll(", ");
@@ -22,7 +22,7 @@ pub fn writePlaceholders(w: std.io.AnyWriter, comptime count: usize) !void {
     }
 }
 
-pub fn writeInsertColumnList(w: std.io.AnyWriter, comptime T: type, comptime m: meta.Meta) !void {
+pub fn writeInsertColumnList(w: anytype, comptime T: type, comptime m: meta.Meta) !void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("writeInsertColumnList expects a struct type");
     const fields = ti.@"struct".fields;
@@ -38,7 +38,7 @@ pub fn writeInsertColumnList(w: std.io.AnyWriter, comptime T: type, comptime m: 
     }
 }
 
-pub fn writeUpdateSetClause(w: std.io.AnyWriter, comptime T: type, comptime m: meta.Meta) !void {
+pub fn writeUpdateSetClause(w: anytype, comptime T: type, comptime m: meta.Meta) !void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("writeUpdateSetClause expects a struct type");
     const fields = ti.@"struct".fields;

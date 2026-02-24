@@ -1,6 +1,7 @@
 const internal = @import("internal.zig");
 
 pub const raw = internal.raw;
+pub const errors = internal.errors;
 pub const Db = internal.Db;
 pub const Stmt = internal.Stmt;
 pub const StepResult = internal.StepResult;

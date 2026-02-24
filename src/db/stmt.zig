@@ -2,6 +2,7 @@ const std = @import("std");
 const raw = @import("../raw/sqlite3.zig");
 const types = @import("../core/types.zig");
 const diag = @import("diag.zig");
+const errors = @import("../core/errors.zig");
 
 const Db = @import("db.zig").Db;
 const db_ok = raw.SQLITE_OK;
@@ -14,7 +15,7 @@ pub const Stmt = struct {
 
     const Self = @This();
 
-    pub fn init(db: *Db, sql: []const u8) !Self {
+    pub fn init(db: *Db, sql: []const u8) errors.ZiteError!Self {
         var stmt_opt: ?*raw.sqlite3_stmt = null;
 
         const n: c_int = @intCast(sql.len);
@@ -41,19 +42,19 @@ pub const Stmt = struct {
         self.finalize();
     }
 
-    pub fn reset(self: *Self) !void {
+    pub fn reset(self: *Self) errors.ZiteError!void {
         const rc = raw.sqlite3_reset(self.stmt);
         if (rc != db_ok)
             return error.SqliteResetFailed;
     }
 
-    pub fn clearbindings(self: *Self) !void {
+    pub fn clearbindings(self: *Self) errors.ZiteError!void {
         const rc = raw.sqlite3_clear_bindings(self.stmt);
         if (rc != db_ok)
             return error.SqliteClearBindingsFailed;
     }
 
-    pub fn step(self: *Stmt) !StepResult {
+    pub fn step(self: *Stmt) errors.ZiteError!StepResult {
         const rc = raw.sqlite3_step(self.stmt);
         return switch (rc) {
             raw.SQLITE_ROW => .row,
@@ -66,7 +67,7 @@ pub const Stmt = struct {
     }
 
     // ---------- bind (1-based index) ----------
-    pub fn bindNull(self: *Self, idx: c_int) !void {
+    pub fn bindNull(self: *Self, idx: c_int) errors.ZiteError!void {
         const rc = raw.sqlite3_bind_null(self.stmt, idx);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_null", null);
@@ -75,7 +76,7 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindInt(self: *Self, idx: c_int, value: i64) !void {
+    pub fn bindInt(self: *Self, idx: c_int, value: i64) errors.ZiteError!void {
         const rc = raw.sqlite3_bind_int64(self.stmt, idx, value);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_int64", null);
@@ -84,7 +85,7 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindFloat(self: *Self, idx: c_int, value: f64) !void {
+    pub fn bindFloat(self: *Self, idx: c_int, value: f64) errors.ZiteError!void {
         const rc = raw.sqlite3_bind_double(self.stmt, idx, @as(f64, @floatCast(value)));
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_double", null);
@@ -93,7 +94,7 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindBool(self: *Self, idx: c_int, value: bool) !void {
+    pub fn bindBool(self: *Self, idx: c_int, value: bool) errors.ZiteError!void {
         const rc = raw.sqlite3_bind_int(self.stmt, idx, if (value) 1 else 0);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_int", null);
@@ -102,7 +103,7 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindText(self: *Self, idx: c_int, value: []const u8) !void {
+    pub fn bindText(self: *Self, idx: c_int, value: []const u8) errors.ZiteError!void {
         const n: c_int = @intCast(value.len);
         const rc = raw.sqlite3_bind_text(self.stmt, idx, value.ptr, n, raw.SQLITE_TRANSIENT);
         if (rc != db_ok) {
@@ -112,7 +113,7 @@ pub const Stmt = struct {
         }
     }
 
-    pub fn bindBlob(self: *Self, idx: c_int, value: []const u8) !void {
+    pub fn bindBlob(self: *Self, idx: c_int, value: []const u8) errors.ZiteError!void {
         const n: c_int = @intCast(value.len);
         const rc = raw.sqlite3_bind_blob(self.stmt, idx, value.ptr, n, raw.SQLITE_TRANSIENT);
         if (rc != db_ok) {
@@ -123,7 +124,7 @@ pub const Stmt = struct {
     }
 
     /// General Binding: Supports int/uint/bool/float/enum/[]const u8/[]u8/optional(?T)
-    pub fn bindOne(self: *Self, idx: c_int, value: anytype) !void {
+    pub fn bindOne(self: *Self, idx: c_int, value: anytype) errors.ZiteError!void {
         const T = @TypeOf(value);
 
         if (T == types.UnixMillis) {
@@ -178,7 +179,7 @@ pub const Stmt = struct {
     /// Rules:
     /// - Parameter indices start at 1 (SQLite convention)
     /// - Supports tuples / regular structs (field order matters)
-    pub fn bindAll(self: *Self, params: anytype) !void {
+    pub fn bindAll(self: *Self, params: anytype) errors.ZiteError!void {
         const P = @TypeOf(params);
         const ti = @typeInfo(P);
 
@@ -230,7 +231,7 @@ pub const Stmt = struct {
         return raw.sqlite3_column_type(self.stmt, col) == raw.SQLITE_NULL;
     }
 
-    pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: c_int) !?[]u8 {
+    pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: c_int) errors.ZiteError!?[]u8 {
         const p = raw.sqlite3_column_text(self.stmt, col);
         if (p == null) return null;
 
@@ -243,7 +244,7 @@ pub const Stmt = struct {
         return out;
     }
 
-    pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: c_int) !?[]u8 {
+    pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: c_int) errors.ZiteError!?[]u8 {
         const p = raw.sqlite3_column_blob(self.stmt, col);
         if (p == null) return null;
 

@@ -7,6 +7,7 @@ const types = internal.types;
 
 const meta = internal.meta;
 const sqlutil = internal.sqlutil;
+const errors = internal.errors;
 
 fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     const ti = @typeInfo(T);
@@ -18,7 +19,7 @@ fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " + m.primary_key);
 }
 
-fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: c_int) !FieldT {
+fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: c_int) errors.ZiteError!FieldT {
     if (FieldT == types.UnixMillis) {
         return .{ .value = st.colInt(col) };
     }
@@ -79,7 +80,7 @@ pub fn Rows(comptime T: type) type {
             }
         }
 
-        pub fn next(self: *Self) !?T {
+        pub fn next(self: *Self) errors.ZiteError!?T {
             if (self.done) return null;
 
             const r = try self.st.step();
@@ -117,7 +118,7 @@ pub fn RowsOwned(comptime T: type) type {
             self.rows.deinit();
         }
 
-        pub fn next(self: *Self) !?Owned(T) {
+        pub fn next(self: *Self) errors.ZiteError!?Owned(T) {
             if (try self.rows.next()) |v| {
                 return wrapOwned(T, self.rows.allocator, v);
             }
@@ -126,7 +127,7 @@ pub fn RowsOwned(comptime T: type) type {
     };
 }
 
-pub fn insert(comptime T: type, db: *Db, entity: T) !i64 {
+pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("insert expects a struct type");
 
@@ -136,8 +137,7 @@ pub fn insert(comptime T: type, db: *Db, entity: T) !i64 {
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    const w0 = buf.writer(db.allocator);
-    const w = w0.any();
+    const w = buf.writer(db.allocator);
 
     try w.writeAll("INSERT INTO ");
     try sqlutil.writeIdent(w, m.table);
@@ -170,7 +170,7 @@ pub fn insert(comptime T: type, db: *Db, entity: T) !i64 {
     return db.lastInsertRowId();
 }
 
-pub fn update(comptime T: type, db: *Db, entity: T) !c_int {
+pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!c_int {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("update expects a struct type");
 
@@ -187,8 +187,7 @@ pub fn update(comptime T: type, db: *Db, entity: T) !c_int {
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    const w0 = buf.writer(db.allocator);
-    const w = w0.any();
+    const w = buf.writer(db.allocator);
 
     try w.writeAll("UPDATE ");
     try sqlutil.writeIdent(w, m.table);
@@ -231,7 +230,7 @@ pub fn update(comptime T: type, db: *Db, entity: T) !c_int {
 
 /// SELECT *by pk*, return ?T; if it contains TEXT slice fields, they will be allocated
 /// on the allocator, and the caller is responsible for freeing them.
-pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) !?T {
+pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?T {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("getById expects a struct type");
 
@@ -240,8 +239,7 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    const w0 = buf.writer(db.allocator);
-    const w = w0.any();
+    const w = buf.writer(db.allocator);
 
     try w.writeAll("SELECT ");
 
@@ -285,7 +283,7 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
     return out;
 }
 
-pub fn getByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) !?Owned(T) {
+pub fn getByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?Owned(T) {
     if (try getById(T, db, allocator, id)) |v| {
         return wrapOwned(T, allocator, v);
     }
@@ -296,7 +294,7 @@ pub fn getByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id:
 /// params is a tuple/struct (e.g., .{ 123, “alice” }), bound sequentially to ?1..?N
 ///
 /// Returns ?T: null if no match is found; one record if found (TEXT slice fields allocate owned memory on the allocator)
-pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) !?T {
+pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!?T {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("findOne expects a struct type");
 
@@ -305,8 +303,7 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    const w0 = buf.writer(db.allocator);
-    const w = w0.any();
+    const w = buf.writer(db.allocator);
 
     try w.writeAll("SELECT ");
 
@@ -355,7 +352,7 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     return out;
 }
 
-pub fn findOneOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) !?Owned(T) {
+pub fn findOneOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!?Owned(T) {
     if (try findOne(T, P, db, allocator, where_clause, params)) |v| {
         return wrapOwned(T, allocator, v);
     }
@@ -416,7 +413,7 @@ fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: any
     }
 }
 
-pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) !Rows(T) {
+pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!Rows(T) {
     const ti = @typeInfo(T);
     if (ti != .@"struct")
         @compileError("findMany expects a struct type");
@@ -426,8 +423,7 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    const w0 = buf.writer(db.allocator);
-    const w = w0.any();
+    const w = buf.writer(db.allocator);
 
     try w.writeAll("SELECT ");
 
@@ -465,7 +461,7 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
     };
 }
 
-pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) !RowsOwned(T) {
+pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!RowsOwned(T) {
     const r = try findMany(T, P, db, allocator, where_clause, params);
     return .{ .rows = r };
 }

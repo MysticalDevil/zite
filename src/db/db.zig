@@ -1,6 +1,7 @@
 const std = @import("std");
 const raw = @import("../raw/sqlite3.zig");
 const diag = @import("diag.zig");
+const errors = @import("../core/errors.zig");
 
 pub const Db = struct {
     allocator: std.mem.Allocator,
@@ -8,7 +9,7 @@ pub const Db = struct {
 
     const Self = @This();
 
-    pub fn open(allocator: std.mem.Allocator, path: []const u8) !Self {
+    pub fn open(allocator: std.mem.Allocator, path: []const u8) errors.ZiteError!Self {
         const path_z = try allocator.dupeZ(u8, path);
         defer allocator.free(path_z);
 
@@ -39,7 +40,7 @@ pub const Db = struct {
         self.close();
     }
 
-    pub fn exec(self: *Self, sql: []const u8) !void {
+    pub fn exec(self: *Self, sql: []const u8) errors.ZiteError!void {
         const sql_z = try self.allocator.dupeZ(u8, sql);
         defer self.allocator.free(sql_z);
 
