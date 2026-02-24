@@ -164,7 +164,7 @@ pub const Stmt = struct {
         }
 
         switch (@typeInfo(T)) {
-            .optional => |_| {
+            .optional => {
                 if (value == null)
                     return self.bindNull(idx);
                 return self.bindOne(idx, value.?);
