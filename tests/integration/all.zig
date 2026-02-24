@@ -7,7 +7,7 @@ comptime {
     _ = @import("stmt_bindall.zig");
     _ = @import("insert_update.zig");
     _ = @import("stmt_column_owned.zig");
-    _ = @import("getbyid.zig");
+    _ = @import("findbyid.zig");
     _ = @import("findone.zig");
     _ = @import("float_time.zig");
     _ = @import("findmany.zig");
