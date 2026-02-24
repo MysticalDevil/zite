@@ -74,24 +74,27 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
     var list: std.ArrayList(u8) = .empty;
     errdefer list.deinit(allocator);
 
-    try list.appendSlice(allocator, "CREATE TABLE ");
-    if (opts.if_not_exists) try list.appendSlice(allocator, "IF NOT EXISTS ");
+    var b = sqlutil.SqlBuilder.init(&list, allocator);
+    try b.reserve(sqlutil.estimateCreateTableLen(T, opts.table_name));
 
-    try sqlutil.writeIdent(&list, allocator, opts.table_name);
+    try b.lit("CREATE TABLE ");
+    if (opts.if_not_exists) try b.lit("IF NOT EXISTS ");
 
-    try list.appendSlice(allocator, " (\n");
+    try b.ident(opts.table_name);
+
+    try b.lit(" (\n");
 
     const fields = info.@"struct".fields;
 
     inline for (fields, 0..) |f, i| {
-        try list.appendSlice(allocator, "  ");
-        try sqlutil.writeIdent(&list, allocator, f.name);
-        try list.append(allocator, ' ');
-        try list.appendSlice(allocator, sqliteDeclaredType(f.type));
+        try b.lit("  ");
+        try b.ident(f.name);
+        try b.byte(' ');
+        try b.lit(sqliteDeclaredType(f.type));
 
         const pk = isPrimaryKeyField(f.name, opts);
         if (pk) {
-            try list.appendSlice(allocator, " PRIMARY KEY");
+            try b.lit(" PRIMARY KEY");
 
             const base = unwrapOptionalType(f.type);
             const is_int = switch (@typeInfo(base)) {
@@ -99,20 +102,20 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
                 else => false,
             };
             if (opts.autoincrement and is_int) {
-                try list.appendSlice(allocator, " AUTOINCREMENT");
+                try b.lit(" AUTOINCREMENT");
             }
         } else if (opts.not_null_by_default and !isOptional(f.type)) {
-            try list.appendSlice(allocator, " NOT NULL");
+            try b.lit(" NOT NULL");
         }
 
         if (i + 1 != fields.len) {
-            try list.appendSlice(allocator, ",\n");
+            try b.lit(",\n");
         } else {
-            try list.append(allocator, '\n');
+            try b.byte('\n');
         }
     }
 
-    try list.appendSlice(allocator, ");");
+    try b.lit(");");
 
     return try list.toOwnedSlice(allocator);
 }

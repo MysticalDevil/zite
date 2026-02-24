@@ -5,6 +5,47 @@ const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList(u8);
 
+pub const SqlBuilder = struct {
+    list: *ArrayList,
+    gpa: Allocator,
+
+    pub fn init(list: *ArrayList, gpa: Allocator) SqlBuilder {
+        return .{ .list = list, .gpa = gpa };
+    }
+
+    pub fn reserve(self: *SqlBuilder, extra: usize) errors.ZiteError!void {
+        try self.list.ensureUnusedCapacity(self.gpa, extra);
+    }
+
+    pub fn lit(self: *SqlBuilder, s: []const u8) errors.ZiteError!void {
+        try self.list.appendSlice(self.gpa, s);
+    }
+
+    pub fn byte(self: *SqlBuilder, b: u8) errors.ZiteError!void {
+        try self.list.append(self.gpa, b);
+    }
+
+    pub fn print(self: *SqlBuilder, comptime fmt: []const u8, args: anytype) errors.ZiteError!void {
+        try self.list.print(self.gpa, fmt, args);
+    }
+
+    pub fn ident(self: *SqlBuilder, name: []const u8) errors.ZiteError!void {
+        try writeIdent(self.list, self.gpa, name);
+    }
+
+    pub fn placeholders(self: *SqlBuilder, comptime count: usize) errors.ZiteError!void {
+        try writePlaceholders(self.list, self.gpa, count);
+    }
+
+    pub fn insertColumnList(self: *SqlBuilder, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
+        try writeInsertColumnList(self.list, self.gpa, T, m);
+    }
+
+    pub fn updateSetClause(self: *SqlBuilder, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
+        try writeUpdateSetClause(self.list, self.gpa, T, m);
+    }
+};
+
 pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) errors.ZiteError!void {
     try list.append(gpa, '"');
     for (name) |ch| {
@@ -57,4 +98,56 @@ pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, 
         try list.print(gpa, "{}", .{set_i + 1});
         set_i += 1;
     }
+}
+
+fn fieldNameLen(comptime T: type) usize {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct") @compileError("fieldNameLen expects a struct type");
+    const fields = ti.@"struct".fields;
+    comptime var total: usize = 0;
+    inline for (fields) |f| total += f.name.len;
+    return total;
+}
+
+pub fn estimateInsertLen(comptime T: type, comptime m: meta.Meta) usize {
+    const field_count = @typeInfo(T).@"struct".fields.len;
+    const col_count = comptime meta.insertableCount(T, m);
+    const names_len = comptime fieldNameLen(T);
+    const base = "INSERT INTO ".len + m.table.len + " (".len + ") VALUES (".len + ");".len;
+    const name_quotes = col_count * 2;
+    const separators = if (col_count > 0) (col_count - 1) * ", ".len else 0;
+    const placeholders = col_count * 2;
+    return base + names_len + name_quotes + separators + placeholders + field_count;
+}
+
+pub fn estimateUpdateLen(comptime T: type, comptime m: meta.Meta) usize {
+    const field_count = @typeInfo(T).@"struct".fields.len;
+    const set_count = comptime meta.updateSetCount(T, m);
+    const names_len = comptime fieldNameLen(T);
+    const base = "UPDATE ".len + m.table.len + " SET ".len + " WHERE ".len + m.primary_key.len + "=?".len + ";".len;
+    const name_quotes = field_count * 2;
+    const separators = if (set_count > 0) (set_count - 1) * ", ".len else 0;
+    const placeholders = set_count * 2 + 2;
+    return base + names_len + name_quotes + separators + placeholders + field_count;
+}
+
+pub fn estimateSelectLen(comptime T: type, comptime m: meta.Meta, where_len: usize, limit_one: bool) usize {
+    const fields = @typeInfo(T).@"struct".fields;
+    const names_len = comptime fieldNameLen(T);
+    const base = "SELECT ".len + " FROM ".len + m.table.len + ";".len;
+    const name_quotes = fields.len * 2;
+    const separators = if (fields.len > 0) (fields.len - 1) * ", ".len else 0;
+    const where_part = if (where_len > 0) " WHERE ".len + where_len else 0;
+    const limit_part = if (limit_one) " LIMIT 1".len else 0;
+    return base + names_len + name_quotes + separators + where_part + limit_part;
+}
+
+pub fn estimateCreateTableLen(comptime T: type, table_name: []const u8) usize {
+    const names_len = comptime fieldNameLen(T);
+    const field_count = @typeInfo(T).@"struct".fields.len;
+    const base = "CREATE TABLE ".len + " (".len + ");".len + table_name.len;
+    const name_quotes = field_count * 2;
+    const separators = if (field_count > 0) (field_count - 1) * ",\n".len else 0;
+    const per_field_overhead = field_count * ("  ".len + " ".len + " NOT NULL".len + " PRIMARY KEY".len);
+    return base + names_len + name_quotes + separators + per_field_overhead;
 }

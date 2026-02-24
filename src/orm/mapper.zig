@@ -137,13 +137,16 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    try buf.appendSlice(db.allocator, "INSERT INTO ");
-    try sqlutil.writeIdent(&buf, db.allocator, m.table);
-    try buf.appendSlice(db.allocator, " (");
-    try sqlutil.writeInsertColumnList(&buf, db.allocator, T, m);
-    try buf.appendSlice(db.allocator, ") VALUES (");
-    try sqlutil.writePlaceholders(&buf, db.allocator, ncols);
-    try buf.appendSlice(db.allocator, ");");
+    var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
+    try b.reserve(sqlutil.estimateInsertLen(T, m));
+
+    try b.lit("INSERT INTO ");
+    try b.ident(m.table);
+    try b.lit(" (");
+    try b.insertColumnList(T, m);
+    try b.lit(") VALUES (");
+    try b.placeholders(ncols);
+    try b.lit(");");
 
     const sql = try buf.toOwnedSlice(db.allocator);
     defer db.allocator.free(sql);
@@ -185,16 +188,19 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    try buf.appendSlice(db.allocator, "UPDATE ");
-    try sqlutil.writeIdent(&buf, db.allocator, m.table);
-    try buf.appendSlice(db.allocator, " SET ");
-    try sqlutil.writeUpdateSetClause(&buf, db.allocator, T, m);
+    var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
+    try b.reserve(sqlutil.estimateUpdateLen(T, m));
 
-    try buf.appendSlice(db.allocator, " WHERE ");
-    try sqlutil.writeIdent(&buf, db.allocator, m.primary_key);
-    try buf.appendSlice(db.allocator, "=?");
-    try buf.print(db.allocator, "{}", .{set_count + 1});
-    try buf.appendSlice(db.allocator, ";");
+    try b.lit("UPDATE ");
+    try b.ident(m.table);
+    try b.lit(" SET ");
+    try b.updateSetClause(T, m);
+
+    try b.lit(" WHERE ");
+    try b.ident(m.primary_key);
+    try b.lit("=?");
+    try b.print("{}", .{set_count + 1});
+    try b.lit(";");
 
     const sql = try buf.toOwnedSlice(db.allocator);
     defer db.allocator.free(sql);
@@ -235,20 +241,23 @@ pub fn getById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFi
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    try buf.appendSlice(db.allocator, "SELECT ");
+    var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
+    try b.reserve(sqlutil.estimateSelectLen(T, m, 0, true));
+
+    try b.lit("SELECT ");
 
     comptime var i: usize = 0;
     inline for (fields) |f| {
-        if (i != 0) try buf.appendSlice(db.allocator, ", ");
-        try sqlutil.writeIdent(&buf, db.allocator, f.name);
+        if (i != 0) try b.lit(", ");
+        try b.ident(f.name);
         i += 1;
     }
 
-    try buf.appendSlice(db.allocator, " FROM ");
-    try sqlutil.writeIdent(&buf, db.allocator, m.table);
-    try buf.appendSlice(db.allocator, " WHERE ");
-    try sqlutil.writeIdent(&buf, db.allocator, m.primary_key);
-    try buf.appendSlice(db.allocator, "=?1 LIMIT 1;");
+    try b.lit(" FROM ");
+    try b.ident(m.table);
+    try b.lit(" WHERE ");
+    try b.ident(m.primary_key);
+    try b.lit("=?1 LIMIT 1;");
 
     const sql = try buf.toOwnedSlice(db.allocator);
     defer db.allocator.free(sql);
@@ -297,25 +306,28 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    try buf.appendSlice(db.allocator, "SELECT ");
+    var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
+    const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
+    try b.reserve(sqlutil.estimateSelectLen(T, m, trimmed.len, true));
+
+    try b.lit("SELECT ");
 
     comptime var i: usize = 0;
     inline for (fields) |f| {
-        if (i != 0) try buf.appendSlice(db.allocator, ", ");
-        try sqlutil.writeIdent(&buf, db.allocator, f.name);
+        if (i != 0) try b.lit(", ");
+        try b.ident(f.name);
         i += 1;
     }
 
-    try buf.appendSlice(db.allocator, " FROM ");
-    try sqlutil.writeIdent(&buf, db.allocator, m.table);
+    try b.lit(" FROM ");
+    try b.ident(m.table);
 
-    const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
     if (trimmed.len != 0) {
-        try buf.appendSlice(db.allocator, " WHERE ");
-        try buf.appendSlice(db.allocator, trimmed);
+        try b.lit(" WHERE ");
+        try b.lit(trimmed);
     }
 
-    try buf.appendSlice(db.allocator, " LIMIT 1;");
+    try b.lit(" LIMIT 1;");
 
     const sql = try buf.toOwnedSlice(db.allocator);
     defer db.allocator.free(sql);
@@ -415,26 +427,29 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
 
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(db.allocator);
-    try buf.appendSlice(db.allocator, "SELECT ");
+    var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
+    const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
+    try b.reserve(sqlutil.estimateSelectLen(T, m, trimmed.len, false));
+
+    try b.lit("SELECT ");
 
     comptime var i: usize = 0;
     inline for (fields) |f| {
         if (i != 0)
-            try buf.appendSlice(db.allocator, ", ");
-        try sqlutil.writeIdent(&buf, db.allocator, f.name);
+            try b.lit(", ");
+        try b.ident(f.name);
         i += 1;
     }
 
-    try buf.appendSlice(db.allocator, " FROM ");
-    try sqlutil.writeIdent(&buf, db.allocator, m.table);
+    try b.lit(" FROM ");
+    try b.ident(m.table);
 
-    const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
     if (trimmed.len != 0) {
-        try buf.appendSlice(db.allocator, " WHERE ");
-        try buf.appendSlice(db.allocator, trimmed);
+        try b.lit(" WHERE ");
+        try b.lit(trimmed);
     }
 
-    try buf.appendSlice(db.allocator, ";");
+    try b.lit(";");
 
     const sql = try buf.toOwnedSlice(db.allocator);
     defer db.allocator.free(sql);
