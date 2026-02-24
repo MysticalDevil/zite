@@ -52,16 +52,6 @@ fn sqliteDeclaredType(comptime T_in: type) []const u8 {
         .bool => "INTEGER",
         .@"enum" => "INTEGER",
 
-        .pointer => |p| blk: {
-            if (p.size == .slice and p.child == u8) break :blk "TEXT";
-            break :blk "BLOB";
-        },
-
-        .array => |a| blk: {
-            if (a.child == u8) break :blk "BLOB";
-            break :blk "BLOB";
-        },
-
         else => @compileError("Unsupported field type for SQLite schema: " ++ @typeName(T)),
     };
 }

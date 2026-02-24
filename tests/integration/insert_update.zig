@@ -3,7 +3,7 @@ const orm = @import("zite");
 
 const User = struct {
     id: i64,
-    name: []const u8,
+    name: orm.types.OwnedText,
     age: ?i64,
     created_at: i64,
 
@@ -24,9 +24,11 @@ test "mapper.insert + mapper.update: roundtrip" {
     defer a.free(ddl);
     try db.exec(ddl);
 
+    const name1 = try orm.types.OwnedText.fromConst(a, "aice");
+    defer a.free(name1.value);
     var u = User{
         .id = 0,
-        .name = "aice",
+        .name = name1,
         .age = null,
         .created_at = 123,
     };
@@ -35,7 +37,9 @@ test "mapper.insert + mapper.update: roundtrip" {
     try std.testing.expect(new_id > 0);
 
     u.id = new_id;
-    u.name = "alice2";
+    const name2 = try orm.types.OwnedText.fromConst(a, "alice2");
+    defer a.free(name2.value);
+    u.name = name2;
     u.age = 42;
 
     const changed = try orm.mapper.update(User, &db, u);

@@ -53,13 +53,7 @@ fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col
             const tag_ty = @typeInfo(FieldT).@"enum".tag_type;
             return @enumFromInt(@as(tag_ty, @intCast(v)));
         },
-        .pointer => |p| {
-            if (p.size == .slice and p.child == u8) {
-                const owned = (try st.colTextOwned(allocator, col)) orelse return error.UnexpectedNull;
-                return owned;
-            }
-            return error.UnexpectedColumnType;
-        },
+        .pointer => return error.UnsupportedColumnType,
 
         else => return error.UnsupportedColumnType,
     }
@@ -423,12 +417,6 @@ fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: any
         .optional => |o| {
             if (field_ptr.*) |*v| {
                 freeField(o.child, allocator, v);
-            }
-        },
-        .pointer => |p| {
-            if (p.size == .slice and p.child == u8) {
-                const s = field_ptr.*;
-                if (s.len != 0) allocator.free(@constCast(s));
             }
         },
         else => {},

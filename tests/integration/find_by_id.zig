@@ -3,7 +3,7 @@ const orm = @import("zite");
 
 const User = struct {
     id: i64,
-    name: []const u8,
+    name: orm.types.OwnedText,
     age: ?i64,
     created_at: i64,
 
@@ -15,7 +15,7 @@ const User = struct {
 };
 
 fn freeUser(a: std.mem.Allocator, u: *User) void {
-    a.free(@constCast(u.name));
+    a.free(u.name.value);
 }
 
 test "mapper.findById: insert -> findById -> update -> findById" {
@@ -30,9 +30,11 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     defer a.free(ddl);
     try db.exec(ddl);
 
+    const name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer a.free(name1.value);
     var u = User{
         .id = 0,
-        .name = "alice",
+        .name = name1,
         .age = null,
         .created_at = 123,
     };
@@ -44,12 +46,14 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     defer freeUser(a, &got1);
 
     try std.testing.expectEqual(new_id, got1.id);
-    try std.testing.expectEqualStrings("alice", got1.name);
+    try std.testing.expectEqualStrings("alice", got1.name.value);
     try std.testing.expect(got1.age == null);
     try std.testing.expectEqual(@as(i64, 123), got1.created_at);
 
     u.id = new_id;
-    u.name = "alice2";
+    const name2 = try orm.types.OwnedText.fromConst(a, "alice2");
+    defer a.free(name2.value);
+    u.name = name2;
     u.age = 42;
 
     const changed = try orm.mapper.update(User, &db, u);
@@ -58,6 +62,6 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     var got2 = (try orm.mapper.findById(User, &db, a, new_id)).?;
     defer freeUser(a, &got2);
 
-    try std.testing.expectEqualStrings("alice2", got2.name);
+    try std.testing.expectEqualStrings("alice2", got2.name.value);
     try std.testing.expectEqual(@as(i64, 42), got2.age.?);
 }

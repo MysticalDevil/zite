@@ -43,7 +43,9 @@ test "errmsg: step runtime error provides message" {
     {
         var st1 = try orm.Stmt.init(&db, "INSERT INTO users(name) VALUES (?1);");
         defer st1.deinit();
-        try st1.bindOne(1, "alice");
+        const name1 = try orm.types.OwnedText.fromConst(a, "alice");
+        defer a.free(name1.value);
+        try st1.bindOne(1, name1);
         try std.testing.expectEqual(orm.StepResult.done, try st1.step());
     }
 
@@ -51,7 +53,9 @@ test "errmsg: step runtime error provides message" {
     {
         var st2 = try orm.Stmt.init(&db, "INSERT INTO users(name) VALUES (?1);");
         defer st2.deinit();
-        try st2.bindOne(1, "alice");
+        const name2 = try orm.types.OwnedText.fromConst(a, "alice");
+        defer a.free(name2.value);
+        try st2.bindOne(1, name2);
         try std.testing.expectError(error.SqliteConstraint, st2.step());
     }
 

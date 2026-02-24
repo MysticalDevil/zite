@@ -3,7 +3,7 @@ const orm = @import("zite");
 
 const User = struct {
     id: i64,
-    name: []const u8,
+    name: orm.types.OwnedText,
     age: ?i64,
 
     pub const Meta = .{
@@ -28,13 +28,17 @@ test "owned: findByIdOwned and findManyOwned free via deinit" {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    const id1 = try orm.mapper.insert(User, &db, .{ .id = 0, .name = "alice", .age = 10 });
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = "bob", .age = 20 });
+    const name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer a.free(name1.value);
+    const name2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer a.free(name2.value);
+    const id1 = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name1, .age = 10 });
+    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name2, .age = 20 });
 
     if (try orm.mapper.findByIdOwned(User, &db, a, id1)) |owned| {
         var o = owned;
         defer o.deinit();
-        try std.testing.expectEqualStrings("alice", o.value.name);
+        try std.testing.expectEqualStrings("alice", o.value.name.value);
     } else {
         return error.TestExpectedRow;
     }

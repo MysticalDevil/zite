@@ -3,7 +3,7 @@ const orm = @import("zite");
 
 const User = struct {
     id: i64,
-    name: []const u8,
+    name: orm.types.OwnedText,
     age: ?u32,
     created_at: i64,
 };

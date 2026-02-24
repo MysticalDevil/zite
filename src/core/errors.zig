@@ -45,7 +45,7 @@ pub const ZiteError = error{
     /// Column was NULL when a non-optional value was required.
     UnexpectedNull,
     /// bindAll expects a struct/tuple.
-    BindAllExpecteStructOrTuple,
+    BindAllExpectedStructOrTuple,
 
     /// No insertable fields found for INSERT.
     NoInsertableFields,

@@ -142,7 +142,7 @@ pub const Stmt = struct {
         }
     }
 
-    /// General Binding: Supports int/uint/bool/float/enum/[]const u8/[]u8/optional(?T)
+    /// General Binding: Supports int/uint/bool/float/enum/optional(?T)
     /// plus types.OwnedText/types.OwnedBlob and types.EpochMillis.
     pub fn bindOne(self: *Self, idx: i32, value: anytype) errors.ZiteError!void {
         const T = @TypeOf(value);
@@ -167,30 +167,7 @@ pub const Stmt = struct {
             .int, .comptime_int => return self.bindInt(idx, value),
             .float, .comptime_float => return self.bindFloat(idx, value),
             .@"enum" => return self.bindInt(idx, @as(i64, @intCast(@intFromEnum(value)))),
-            .pointer => |p| {
-                switch (p.size) {
-                    .slice => if (p.child == u8) return self.bindText(idx, value),
-                    .one => {
-                        const child_info = @typeInfo(p.child);
-                        if (child_info == .array and child_info.array.child == u8) {
-                            const arr = value.*;
-                            return self.bindText(idx, arr[0..]);
-                        }
-                    },
-                    .many, .c => {
-                        if (p.child == u8 and p.sentinel != null) {
-                            const s = std.mem.sliceTo(value, 0);
-                            return self.bindText(idx, s);
-                        }
-                    },
-                }
-                return error.UnsupportedBindType;
-            },
-            .array => |a| {
-                if (a.child == u8)
-                    return self.bindBlob(idx, value[0..]);
-                return error.UnsupportedBindType;
-            },
+            .pointer, .array => return error.UnsupportedBindType,
             else => return error.UnsupportedBindType,
         }
     }
@@ -204,7 +181,7 @@ pub const Stmt = struct {
         const ti = @typeInfo(P);
 
         if (ti != .@"struct")
-            return error.BindAllExpecteStructOrTuple;
+            return error.BindAllExpectedStructOrTuple;
 
         const s = ti.@"struct";
         inline for (s.fields, 0..) |f, i| {

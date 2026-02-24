@@ -19,7 +19,7 @@ pub fn isPk(comptime name: []const u8, comptime pk: []const u8) bool {
 /// Reads Meta from a struct type, with defaults.
 pub fn getMeta(comptime T: type) Meta {
     if (!@hasDecl(T, "Meta")) {
-        @compileError("Type" ++ @typeName(T) ++ " must declar `pub const Meta = .{ .table = \"...\"}`");
+        @compileError("Type" ++ @typeName(T) ++ " must declare `pub const Meta = .{ .table = \"...\"}`");
     }
 
     const m = T.Meta;

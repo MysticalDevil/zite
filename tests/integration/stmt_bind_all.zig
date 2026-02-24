@@ -12,9 +12,11 @@ test "Stmt.bindAll: binds int/text/null and reads them back" {
     var st = try orm.Stmt.init(&db, "SELECT ?1 AS a, ?2 as b, ?3 as c;");
     defer st.deinit();
 
+    const text = try orm.types.OwnedText.fromConst(a, "zig");
+    defer a.free(text.value);
     try st.bindAll(.{
         @as(i64, 42),
-        @as([]const u8, "zig"),
+        text,
         @as(?i64, null),
     });
 
