@@ -66,12 +66,6 @@ pub const Stmt = struct {
             return sqlite_errors.mapSqliteRc(rc, error.SqliteResetFailed);
     }
 
-    pub fn clearbindings(self: *Self) errors.ZiteError!void {
-        const rc = raw.stmt.clearBindings(self.stmt);
-        if (rc != db_ok)
-            return sqlite_errors.mapSqliteRc(rc, error.SqliteClearBindingsFailed);
-    }
-
     /// Steps the statement. Returns .row for a row, .done when complete.
     pub fn step(self: *Stmt) errors.ZiteError!StepResult {
         const rc = raw.stmt.step(self.stmt);

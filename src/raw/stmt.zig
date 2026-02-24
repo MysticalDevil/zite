@@ -30,11 +30,6 @@ pub fn reset(stmt: StmtHandle) i32 {
     return @intCast(raw.sqlite3_reset(stmt.ptr));
 }
 
-/// Clears all bound parameters.
-pub fn clearBindings(stmt: StmtHandle) i32 {
-    return @intCast(raw.sqlite3_clear_bindings(stmt.ptr));
-}
-
 /// Binds NULL to a 1-based parameter index.
 pub fn bindNull(stmt: StmtHandle, idx: i32) i32 {
     return @intCast(raw.sqlite3_bind_null(stmt.ptr, @intCast(idx)));

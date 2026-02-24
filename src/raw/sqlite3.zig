@@ -42,9 +42,6 @@ pub const sqlite3_finalize = c.sqlite3_finalize;
 pub const sqlite3_step = c.sqlite3_step;
 /// sqlite3_reset
 pub const sqlite3_reset = c.sqlite3_reset;
-/// sqlite3_clear_bindings
-pub const sqlite3_clear_bindings = c.sqlite3_clear_bindings;
-
 /// sqlite3_bind_null
 pub const sqlite3_bind_null = c.sqlite3_bind_null;
 /// sqlite3_bind_int64

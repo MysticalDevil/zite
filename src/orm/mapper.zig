@@ -393,14 +393,6 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     return out;
 }
 
-/// Executes a WHERE query and returns at most one row into OwnedRow(T).
-pub fn findOneOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!?OwnedRow(T) {
-    if (try findOne(T, P, db, allocator, where_clause, params)) |v| {
-        return wrapOwnedRow(T, allocator, v);
-    }
-    return null;
-}
-
 /// Wrapper that frees owned TEXT/BLOB fields via deinit().
 pub fn OwnedRow(comptime T: type) type {
     return struct {

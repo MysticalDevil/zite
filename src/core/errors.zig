@@ -29,8 +29,6 @@ pub const ZiteError = error{
     SqlitePrepareFailed,
     /// sqlite3_reset failed.
     SqliteResetFailed,
-    /// sqlite3_clear_bindings failed.
-    SqliteClearBindingsFailed,
     /// sqlite3_step failed.
     SqliteStepFailed,
     /// sqlite3_bind_* failed.
