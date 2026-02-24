@@ -24,14 +24,16 @@ test "mapper: text round trip with types.Text" {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    var payload = "hello text".*;
+    const payload = "hello text";
+    const body = try orm.types.Text.fromConst(a, payload);
+    defer a.free(body.value);
     _ = try orm.mapper.insert(Note, &db, .{
         .id = 0,
-        .body = .{ .value = payload[0..] },
+        .body = body,
     });
 
     var got = (try orm.mapper.getByIdOwned(Note, &db, a, @as(i64, 1))).?;
     defer got.deinit();
 
-    try std.testing.expectEqualStrings(&payload, got.value.body.value);
+    try std.testing.expectEqualStrings(payload, got.value.body.value);
 }

@@ -24,10 +24,12 @@ test "mapper: blob round trip" {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    var payload = [_]u8{ 0, 1, 2, 3, 4, 5 };
+    const payload = [_]u8{ 0, 1, 2, 3, 4, 5 };
+    const data = try orm.types.Blob.fromConst(a, payload[0..]);
+    defer a.free(data.value);
     _ = try orm.mapper.insert(Doc, &db, .{
         .id = 0,
-        .data = .{ .value = payload[0..] },
+        .data = data,
     });
 
     var got = (try orm.mapper.getByIdOwned(Doc, &db, a, @as(i64, 1))).?;
