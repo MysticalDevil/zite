@@ -121,3 +121,91 @@ pub fn updateSetCount(comptime T: type, comptime m: Meta) usize {
     }
     return n;
 }
+
+test "meta: getMeta defaults and overrides" {
+    const A = struct {
+        id: i64,
+        name: i64,
+
+        pub const Meta = .{
+            .table = "items",
+        };
+    };
+    const B = struct {
+        id: i64,
+        name: i64,
+        skip_me: i64,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = false,
+            .skip = &.{"skip_me"},
+            .rename = &.{
+                .{ .field = "name", .column = "full_name" },
+            },
+            .unique = &.{
+                &.{"name"},
+            },
+        };
+    };
+
+    const ma = getMeta(A);
+    try std.testing.expectEqualStrings("items", ma.table);
+    try std.testing.expectEqualStrings("id", ma.primary_key);
+    try std.testing.expect(ma.skip_primary_key_on_insert);
+    try std.testing.expectEqual(@as(usize, 0), ma.skip.len);
+    try std.testing.expectEqual(@as(usize, 0), ma.rename.len);
+    try std.testing.expectEqual(@as(usize, 0), ma.unique.len);
+
+    const mb = getMeta(B);
+    try std.testing.expectEqualStrings("users", mb.table);
+    try std.testing.expectEqualStrings("id", mb.primary_key);
+    try std.testing.expect(!mb.skip_primary_key_on_insert);
+    try std.testing.expectEqual(@as(usize, 1), mb.skip.len);
+    try std.testing.expectEqual(@as(usize, 1), mb.rename.len);
+    try std.testing.expectEqual(@as(usize, 1), mb.unique.len);
+}
+
+test "meta: columnName, pkColumnName, isSkipped" {
+    const S = struct {
+        id: i64,
+        name: i64,
+        skip_me: i64,
+
+        pub const Meta = .{
+            .table = "t",
+            .primary_key = "id",
+            .skip = &.{"skip_me"},
+            .rename = &.{
+                .{ .field = "name", .column = "full_name" },
+            },
+        };
+    };
+
+    const m = getMeta(S);
+    try std.testing.expectEqualStrings("full_name", columnName("name", m));
+    try std.testing.expectEqualStrings("id", pkColumnName(m));
+    try std.testing.expect(isSkipped("skip_me", m));
+    try std.testing.expect(!isSkipped("name", m));
+}
+
+test "meta: insertableCount/updateSetCount/hasPrimaryKeyField" {
+    const S = struct {
+        id: i64,
+        name: i64,
+        skip_me: i64,
+
+        pub const Meta = .{
+            .table = "t",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+            .skip = &.{"skip_me"},
+        };
+    };
+
+    const m = getMeta(S);
+    try std.testing.expect(hasPrimaryKeyField(S, m));
+    try std.testing.expectEqual(@as(usize, 1), insertableCount(S, m));
+    try std.testing.expectEqual(@as(usize, 1), updateSetCount(S, m));
+}

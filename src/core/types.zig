@@ -41,3 +41,44 @@ pub const OwnedBlob = struct {
         self.value = &[_]u8{};
     }
 };
+
+test "types: OwnedText fromConst copies and deinit clears" {
+    const a = std.testing.allocator;
+    const src = "hello";
+    var t = try OwnedText.fromConst(a, src);
+    defer t.deinit(a);
+
+    try std.testing.expectEqualStrings(src, t.value);
+    // Ensure it is a separate allocation.
+    try std.testing.expect(t.value.ptr != src.ptr);
+
+    t.deinit(a);
+    try std.testing.expectEqual(@as(usize, 0), t.value.len);
+}
+
+test "types: OwnedText empty deinit is safe" {
+    const a = std.testing.allocator;
+    var t = try OwnedText.fromConst(a, "");
+    t.deinit(a);
+    try std.testing.expectEqual(@as(usize, 0), t.value.len);
+}
+
+test "types: OwnedBlob fromConst copies and deinit clears" {
+    const a = std.testing.allocator;
+    const src = [_]u8{ 1, 2, 3 };
+    var b = try OwnedBlob.fromConst(a, src[0..]);
+    defer b.deinit(a);
+
+    try std.testing.expect(std.mem.eql(u8, src[0..], b.value));
+    try std.testing.expect(b.value.ptr != src[0..].ptr);
+
+    b.deinit(a);
+    try std.testing.expectEqual(@as(usize, 0), b.value.len);
+}
+
+test "types: OwnedBlob empty deinit is safe" {
+    const a = std.testing.allocator;
+    var b = try OwnedBlob.fromConst(a, &.{});
+    b.deinit(a);
+    try std.testing.expectEqual(@as(usize, 0), b.value.len);
+}
