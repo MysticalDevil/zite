@@ -1,6 +1,5 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const build_options = @import("build_options");
 const Db = @import("db.zig").Db;
 
 fn sqlSnippet(sql: []const u8) []const u8 {
@@ -11,7 +10,7 @@ fn sqlSnippet(sql: []const u8) []const u8 {
 
 fn enabledInThisBuild() bool {
     if (!builtin.is_test) return true;
-    return build_options.diag_enable_in_tests;
+    return false;
 }
 
 /// Logs a sqlite failure with optional SQL snippet (if enabled).

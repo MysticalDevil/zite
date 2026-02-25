@@ -166,7 +166,6 @@ specific errors (busy, constraint, io, etc.) where possible.
 
 - `zig build test` runs unit tests.
 - `zig build itest` runs integration tests.
-- `zig build itest -Ddiag_enable_in_tests=true` enables sqlite diagnostics.
 
 ## Examples
 
