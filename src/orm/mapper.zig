@@ -502,6 +502,46 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
     };
 }
 
+test "mapper: freeOwnedRow frees owned fields and optionals" {
+    const Row = struct {
+        name: types.OwnedText,
+        data: ?types.OwnedBlob,
+        count: i64,
+    };
+
+    const a = std.testing.allocator;
+    const name = try types.OwnedText.fromConst(a, "alice");
+    const blob = try types.OwnedBlob.fromConst(a, &[_]u8{ 1, 2, 3 });
+
+    var row = Row{
+        .name = name,
+        .data = blob,
+        .count = 1,
+    };
+    freeOwnedRow(Row, a, &row);
+    try std.testing.expectEqual(@as(usize, 0), row.name.value.len);
+    try std.testing.expectEqual(@as(usize, 0), row.data.?.value.len);
+}
+
+test "mapper: OwnedRow deinit frees inner owned fields" {
+    const Row = struct {
+        name: types.OwnedText,
+        data: ?types.OwnedBlob,
+    };
+
+    const a = std.testing.allocator;
+    const name = try types.OwnedText.fromConst(a, "bob");
+    const row = Row{
+        .name = name,
+        .data = null,
+    };
+
+    var owned = OwnedRow(Row){ .allocator = a, .value = row };
+    owned.deinit();
+    try std.testing.expectEqual(@as(usize, 0), owned.value.name.value.len);
+    try std.testing.expect(owned.value.data == null);
+}
+
 /// Executes a WHERE query and returns an iterator of OwnedRow(T) rows.
 pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!RowsOwned(T) {
     const r = try findMany(T, P, db, allocator, where_clause, params);
