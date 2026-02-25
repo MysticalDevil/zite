@@ -11,17 +11,43 @@ Typed SQLite access for Zig with a small ORM layer and explicit ownership rules.
 
 ## Install
 
-This repo is a Zig module. Add it to your `build.zig` and link sqlite:
+This repo is a Zig module. Add it via the Zig package manager, then wire it in
+your `build.zig` and link sqlite.
+
+### 1) Add dependency
+
+```sh
+zig fetch --save git+https://github.com/MysticalDevil/zite.git
+```
+
+This creates an entry in `build.zig.zon` under `.dependencies.zite`.
+
+### 2) Wire in `build.zig`
 
 ```zig
-const zite = b.addModule("zite", .{
-    .root_source_file = b.path("path/to/zite/src/root.zig"),
+const exe = b.addExecutable(.{
+    .name = "app",
+    .root_source_file = b.path("src/main.zig"),
     .target = target,
     .optimize = optimize,
     .link_libc = true,
 });
-zite.linkSystemLibrary("sqlite3", .{ .needed = true });
+
+const zite_dep = b.dependency("zite", .{
+    .target = target,
+    .optimize = optimize,
+});
+const zite = zite_dep.module("zite");
+
+exe.root_module.addImport("zite", zite);
+exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 ```
+
+### Notes
+
+- Requires system `sqlite3` development headers and library.
+- The consuming executable/test must set `link_libc = true`.
+- Add `linkSystemLibrary("sqlite3")` to the final executable/test target.
 
 ## API Quick Reference
 
