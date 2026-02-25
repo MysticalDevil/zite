@@ -141,7 +141,7 @@ test "meta: getMeta defaults and overrides" {
             .primary_key = "id",
             .skip_primary_key_on_insert = false,
             .skip = &.{"skip_me"},
-            .rename = &.{
+            .rename = &[_]Rename{
                 .{ .field = "name", .column = "full_name" },
             },
             .unique = &.{
@@ -150,7 +150,7 @@ test "meta: getMeta defaults and overrides" {
         };
     };
 
-    const ma = getMeta(A);
+    const ma = comptime getMeta(A);
     try std.testing.expectEqualStrings("items", ma.table);
     try std.testing.expectEqualStrings("id", ma.primary_key);
     try std.testing.expect(ma.skip_primary_key_on_insert);
@@ -158,7 +158,7 @@ test "meta: getMeta defaults and overrides" {
     try std.testing.expectEqual(@as(usize, 0), ma.rename.len);
     try std.testing.expectEqual(@as(usize, 0), ma.unique.len);
 
-    const mb = getMeta(B);
+    const mb = comptime getMeta(B);
     try std.testing.expectEqualStrings("users", mb.table);
     try std.testing.expectEqualStrings("id", mb.primary_key);
     try std.testing.expect(!mb.skip_primary_key_on_insert);
@@ -177,13 +177,13 @@ test "meta: columnName, pkColumnName, isSkipped" {
             .table = "t",
             .primary_key = "id",
             .skip = &.{"skip_me"},
-            .rename = &.{
+            .rename = &[_]Rename{
                 .{ .field = "name", .column = "full_name" },
             },
         };
     };
 
-    const m = getMeta(S);
+    const m = comptime getMeta(S);
     try std.testing.expectEqualStrings("full_name", columnName("name", m));
     try std.testing.expectEqualStrings("id", pkColumnName(m));
     try std.testing.expect(isSkipped("skip_me", m));
@@ -204,7 +204,7 @@ test "meta: insertableCount/updateSetCount/hasPrimaryKeyField" {
         };
     };
 
-    const m = getMeta(S);
+    const m = comptime getMeta(S);
     try std.testing.expect(hasPrimaryKeyField(S, m));
     try std.testing.expectEqual(@as(usize, 1), insertableCount(S, m));
     try std.testing.expectEqual(@as(usize, 1), updateSetCount(S, m));

@@ -184,15 +184,15 @@ test "sqlutil insert/update clauses honor meta" {
             .table = "samples",
             .primary_key = "id",
             .skip_primary_key_on_insert = true,
-            .skip = &.{ "skip_me" },
-            .rename = &.{
+            .skip = &.{"skip_me"},
+            .rename = &[_]meta.Rename{
                 .{ .field = "name", .column = "full_name" },
             },
         };
     };
 
     const gpa = std.testing.allocator;
-    const m = meta.getMeta(Sample);
+    const m = comptime meta.getMeta(Sample);
 
     var insert_buf: ArrayList = .empty;
     defer insert_buf.deinit(gpa);
