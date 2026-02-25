@@ -542,6 +542,38 @@ test "mapper: OwnedRow deinit frees inner owned fields" {
     try std.testing.expect(owned.value.data == null);
 }
 
+test "mapper: Rows deinit finalizes early" {
+    const Row = struct {
+        id: i64,
+        name: types.OwnedText,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+        };
+    };
+
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+
+    var name = try types.OwnedText.fromConst(a, "alice");
+    defer name.deinit(a);
+    _ = try insert(Row, &db, .{ .id = 0, .name = name });
+
+    const P = @TypeOf(.{@as(i64, 0)});
+    var rows = try findMany(Row, P, &db, a, "\"id\">?1", .{@as(i64, 0)});
+    rows.deinit();
+}
+
 /// Executes a WHERE query and returns an iterator of OwnedRow(T) rows.
 pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!RowsOwned(T) {
     const r = try findMany(T, P, db, allocator, where_clause, params);

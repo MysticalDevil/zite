@@ -276,3 +276,59 @@ test "stmt: bindAll requires struct/tuple" {
 
     try std.testing.expectError(error.BindAllExpectedStructOrTuple, st.bindAll(@as(i64, 1)));
 }
+
+test "stmt: bindOne supports OwnedText/OwnedBlob/EpochMillis/optional" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    var st = try Stmt.init(&db, "SELECT ?1, ?2, ?3, ?4;");
+    defer st.deinit();
+
+    var text = try types.OwnedText.fromConst(a, "zig");
+    defer text.deinit(a);
+    var blob = try types.OwnedBlob.fromConst(a, &[_]u8{ 1, 2 });
+    defer blob.deinit(a);
+
+    try st.bindOne(1, text);
+    try st.bindOne(2, blob);
+    try st.bindOne(3, types.EpochMillis{ .value = 123 });
+    try st.bindOne(4, @as(?i64, null));
+
+    try std.testing.expectEqual(StepResult.row, try st.step());
+    const got_text = (try st.colTextOwned(a, 0)).?;
+    defer a.free(got_text);
+    try std.testing.expectEqualStrings("zig", got_text);
+
+    const got_blob = (try st.colBlobOwned(a, 1)).?;
+    defer a.free(got_blob);
+    try std.testing.expect(std.mem.eql(u8, &[_]u8{ 1, 2 }, got_blob));
+
+    try std.testing.expectEqual(@as(i64, 123), st.colInt(2));
+    try std.testing.expect(st.colIsNull(3));
+    try std.testing.expectEqual(StepResult.done, try st.step());
+}
+
+test "stmt: bindText/blob and colTextOwned/colBlobOwned on empty" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    var st = try Stmt.init(&db, "SELECT ?1, ?2;");
+    defer st.deinit();
+
+    try st.bindText(1, "");
+    try st.bindBlob(2, &.{});
+
+    try std.testing.expectEqual(StepResult.row, try st.step());
+    const t = (try st.colTextOwned(a, 0)).?;
+    defer a.free(t);
+    try std.testing.expectEqual(@as(usize, 0), t.len);
+
+    const b_opt = try st.colBlobOwned(a, 1);
+    if (b_opt) |b| {
+        defer a.free(b);
+        try std.testing.expectEqual(@as(usize, 0), b.len);
+    }
+    try std.testing.expectEqual(StepResult.done, try st.step());
+}
