@@ -101,3 +101,37 @@ pub const Db = struct {
         }
     }
 };
+
+test "db: exec, changes, lastInsertRowId" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+    try db.exec("INSERT INTO users(name) VALUES ('alice');");
+    try std.testing.expectEqual(@as(i64, 1), db.lastInsertRowId());
+    try std.testing.expectEqual(@as(i32, 1), db.changes());
+}
+
+test "db: exec invalid SQL returns error and errmsg" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try std.testing.expectError(error.SqliteExecFailed, db.exec("THIS IS NOT SQL;"));
+    const msg = db.errmsg();
+    try std.testing.expect(msg.len != 0);
+}
+
+test "db: register/unregister clamp underflow" {
+    var db = try Db.open(std.testing.allocator, ":memory:");
+    defer db.deinit();
+
+    db.unregisterStmt();
+    try std.testing.expectEqual(@as(i32, 0), db.active_stmts);
+}

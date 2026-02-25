@@ -245,3 +245,34 @@ pub const Stmt = struct {
         return out;
     }
 };
+
+test "stmt: bindInt and reset" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    var st = try Stmt.init(&db, "SELECT ?1;");
+    defer st.deinit();
+
+    try st.bindInt(1, 1);
+    try std.testing.expectEqual(StepResult.row, try st.step());
+    try std.testing.expect(st.colBool(0));
+    try std.testing.expectEqual(StepResult.done, try st.step());
+
+    try st.reset();
+    try st.bindInt(1, 0);
+    try std.testing.expectEqual(StepResult.row, try st.step());
+    try std.testing.expect(!st.colBool(0));
+    try std.testing.expectEqual(StepResult.done, try st.step());
+}
+
+test "stmt: bindAll requires struct/tuple" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    var st = try Stmt.init(&db, "SELECT ?1;");
+    defer st.deinit();
+
+    try std.testing.expectError(error.BindAllExpectedStructOrTuple, st.bindAll(@as(i64, 1)));
+}
