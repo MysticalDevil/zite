@@ -11,10 +11,10 @@ Typed SQLite access for Zig with a small ORM layer and explicit ownership rules.
 
 ## Install
 
-This repo is a Zig module. Add it via the Zig package manager, then wire it in
-your `build.zig` and link sqlite.
+This repo is a Zig module. Add it via the Zig package manager, then integrate it in `build.zig`
+and link sqlite.
 
-### 1) Add dependency
+### 1. Add dependency
 
 ```sh
 zig fetch --save git+https://github.com/MysticalDevil/zite.git
@@ -22,7 +22,7 @@ zig fetch --save git+https://github.com/MysticalDevil/zite.git
 
 This creates an entry in `build.zig.zon` under `.dependencies.zite`.
 
-### 2) Wire in `build.zig`
+### 2. Integrate in `build.zig`
 
 ```zig
 const exe = b.addExecutable(.{
@@ -57,8 +57,8 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | Statements | `zite.Stmt.init` / `st.deinit` | Prepared statement wrapper. |
 | ORM insert | `zite.mapper.insert` | Returns last insert rowid. |
 | ORM update | `zite.mapper.update` | Returns rows changed. |
-| ORM find by id | `zite.mapper.findByIdOwned` | Returns `OwnedRow(T)` or `null`. |
-| ORM find one | `zite.mapper.findOne` | WHERE + params, returns `T` or `null`. |
+| Find by id | `zite.mapper.findByIdOwned` | `OwnedRow(T)` or `null`. |
+| Find one | `zite.mapper.findOne` | WHERE + params, `T` or `null`. |
 | ORM find many | `zite.mapper.findMany` | Iterates rows with `Rows(T)`. |
 | Schema | `zite.schema.createTableSqlFromMeta` | CREATE TABLE from `Meta`. |
 | Errors | `zite.errors.ZiteError` | Unified error set. |
