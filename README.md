@@ -22,7 +22,7 @@ zig fetch --save git+https://github.com/MysticalDevil/zite.git
 
 This creates an entry in `build.zig.zon` under `.dependencies.zite`.
 
-### 2) Wire in `build.zig`
+### 2) Integrate in `build.zig`
 
 ```zig
 const exe = b.addExecutable(.{
