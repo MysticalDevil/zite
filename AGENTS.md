@@ -6,12 +6,14 @@
 - `src/db/` contains the DB and statement wrappers.
 - `src/core/` contains shared types, meta, and SQL utilities.
 - `src/orm/` contains mapper and schema helpers.
+- `src/orm/engine/` contains internal mapper execution helpers (SQL build/read/exec).
 - `tests/` contains integration tests. `tests/itest.zig` is the test entry module and includes files from `tests/integration/`.
 - `examples/` contains runnable usage samples.
 
 ## API Stability & Boundaries
 - Stable APIs: `Db`, `Stmt`, `mapper`, `schema`, `types`, `errors`.
 - Advanced APIs: `raw`, `sqlutil`, `meta` are exposed for power users and may change.
+- Internal APIs: `src/orm/engine/*` are implementation details and not part of the public API contract.
 
 ## Build, Test, and Development Commands
 - `zig build` builds the library with default settings.

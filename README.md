@@ -74,6 +74,8 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 - Stable: `Db`, `Stmt`, `mapper`, `schema`, `types`, `errors`.
 - Advanced/Low-level: `raw`, `sqlutil`, `meta`. These are exposed for power users
   but may change when internals evolve.
+- Internal: `src/orm/engine/*` is an implementation detail used by `mapper` and is
+  not part of the public API contract.
 
 ## Quick Start (ORM)
 
@@ -253,4 +255,5 @@ See `examples/README.md` for more commands.
 - `src/db/` DB/statement wrappers.
 - `src/core/` types/meta/sql helpers.
 - `src/orm/` mapper and schema.
+- `src/orm/engine/` internal mapper engine (SQL assembly, row decoding, exec helpers).
 - `tests/` integration tests.
