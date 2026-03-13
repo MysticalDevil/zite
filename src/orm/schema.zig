@@ -40,9 +40,15 @@ fn unwrapOptionalType(comptime T: type) type {
 fn sqliteDeclaredType(comptime T_in: type) []const u8 {
     const T = unwrapOptionalType(T_in);
 
-    if (T == types.EpochMillis) return "INTEGER";
-    if (T == types.OwnedText) return "TEXT";
-    if (T == types.OwnedBlob) return "BLOB";
+    if (T == types.EpochMillis) {
+        return "INTEGER";
+    }
+    if (T == types.OwnedText) {
+        return "TEXT";
+    }
+    if (T == types.OwnedBlob) {
+        return "BLOB";
+    }
 
     return switch (@typeInfo(T)) {
         .int, .comptime_int => "INTEGER",
@@ -64,7 +70,9 @@ fn isPrimaryKeyField(comptime field_name: []const u8, opts: CreateTableOptions) 
 /// Builds a CREATE TABLE statement for the given struct type.
 pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: CreateTableOptions) errors.ZiteError![]u8 {
     const info = @typeInfo(T);
-    if (info != .@"struct") @compileError("createTableSql expects a struct type");
+    if (info != .@"struct") {
+        @compileError("createTableSql expects a struct type");
+    }
 
     var list: std.ArrayList(u8) = .empty;
     errdefer list.deinit(allocator);
@@ -73,7 +81,9 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
     try b.reserve(sqlutil.estCreateTableLen(T, opts.table_name));
 
     try b.lit("CREATE TABLE ");
-    if (opts.if_not_exists) try b.lit("IF NOT EXISTS ");
+    if (opts.if_not_exists) {
+        try b.lit("IF NOT EXISTS ");
+    }
 
     try b.ident(opts.table_name);
 
@@ -119,7 +129,9 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
 pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) errors.ZiteError![]u8 {
     const m = comptime meta.getMeta(T);
     const info = @typeInfo(T);
-    if (info != .@"struct") @compileError("createTableSqlFromMeta expects a struct type");
+    if (info != .@"struct") {
+        @compileError("createTableSqlFromMeta expects a struct type");
+    }
 
     comptime {
         if (meta.isSkipped(m.primary_key, m)) {
@@ -141,9 +153,13 @@ pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) er
     comptime var emitted_fields: usize = 0;
 
     inline for (fields) |f| {
-        if (comptime meta.isSkipped(f.name, m)) continue;
+        if (comptime meta.isSkipped(f.name, m)) {
+            continue;
+        }
 
-        if (emitted_fields != 0) try b.lit(",\n");
+        if (emitted_fields != 0) {
+            try b.lit(",\n");
+        }
 
         try b.lit("  ");
         try b.ident(meta.columnName(f.name, m));
@@ -170,7 +186,9 @@ pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) er
     }
 
     inline for (m.unique) |u| {
-        if (u.len == 0) continue;
+        if (u.len == 0) {
+            continue;
+        }
         try b.lit(",\n  UNIQUE (");
         comptime var ui: usize = 0;
         inline for (u) |field_name| {
@@ -180,7 +198,9 @@ pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) er
             if (comptime meta.isSkipped(field_name, m)) {
                 @compileError("Unique constraint references skipped field: " ++ field_name);
             }
-            if (ui != 0) try b.lit(", ");
+            if (ui != 0) {
+                try b.lit(", ");
+            }
             try b.ident(meta.columnName(field_name, m));
             ui += 1;
         }
@@ -194,9 +214,13 @@ pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) er
 
 fn fieldExists(comptime T: type, comptime name: []const u8) bool {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("fieldExists expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("fieldExists expects a struct type");
+    }
     inline for (ti.@"struct".fields) |f| {
-        if (comptime std.mem.eql(u8, f.name, name)) return true;
+        if (comptime std.mem.eql(u8, f.name, name)) {
+            return true;
+        }
     }
     return false;
 }

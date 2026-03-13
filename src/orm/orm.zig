@@ -33,7 +33,9 @@ pub fn BorrowedRow(comptime T: type) type {
 
         fn fieldType(comptime field: []const u8) type {
             const ti = @typeInfo(T);
-            if (ti != .@"struct") @compileError("BorrowedRow requires a struct model");
+            if (ti != .@"struct") {
+                @compileError("BorrowedRow requires a struct model");
+            }
 
             inline for (ti.@"struct".fields) |f| {
                 if (comptime std.mem.eql(u8, f.name, field)) {
@@ -48,12 +50,18 @@ pub fn BorrowedRow(comptime T: type) type {
 
         fn fieldColumnIndex(comptime field: []const u8) usize {
             const ti = @typeInfo(T);
-            if (ti != .@"struct") @compileError("BorrowedRow requires a struct model");
+            if (ti != .@"struct") {
+                @compileError("BorrowedRow requires a struct model");
+            }
 
             comptime var col: usize = 0;
             inline for (ti.@"struct".fields) |f| {
-                if (comptime meta.isSkipped(f.name, m)) continue;
-                if (comptime std.mem.eql(u8, f.name, field)) return col;
+                if (comptime meta.isSkipped(f.name, m)) {
+                    continue;
+                }
+                if (comptime std.mem.eql(u8, f.name, field)) {
+                    return col;
+                }
                 col += 1;
             }
             @compileError("Unknown field for " ++ @typeName(T) ++ ": " ++ field);
@@ -64,7 +72,9 @@ pub fn BorrowedRow(comptime T: type) type {
 pub fn BorrowedFieldType(comptime T: type, comptime field: []const u8) type {
     const m = meta.getMeta(T);
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("BorrowedFieldType requires a struct model");
+    if (ti != .@"struct") {
+        @compileError("BorrowedFieldType requires a struct model");
+    }
 
     inline for (ti.@"struct".fields) |f| {
         if (comptime std.mem.eql(u8, f.name, field)) {
@@ -236,7 +246,9 @@ pub fn RowsOwned(comptime T: type) type {
         }
 
         pub fn next(self: *Self) errors.ZiteError!?OwnedRow(T) {
-            if (self.done) return null;
+            if (self.done) {
+                return null;
+            }
 
             errdefer {
                 self.st.deinit();
@@ -269,7 +281,9 @@ pub fn RowsBorrowed(comptime T: type) type {
         }
 
         pub fn next(self: *Self) errors.ZiteError!?BorrowedRow(T) {
-            if (self.done) return null;
+            if (self.done) {
+                return null;
+            }
 
             errdefer {
                 self.closeAndInvalidate();
@@ -289,12 +303,18 @@ pub fn RowsBorrowed(comptime T: type) type {
         }
 
         fn ensureRowAlive(self: *const Self, row_generation: usize) errors.ZiteError!void {
-            if (self.st.isFinalized()) return error.StatementFinalized;
-            if (self.cursor_generation != row_generation) return error.BorrowedRowStale;
+            if (self.st.isFinalized()) {
+                return error.StatementFinalized;
+            }
+            if (self.cursor_generation != row_generation) {
+                return error.BorrowedRowStale;
+            }
         }
 
         fn closeAndInvalidate(self: *Self) void {
-            if (self.done) return;
+            if (self.done) {
+                return;
+            }
             self.st.deinit();
             self.done = true;
             self.cursor_generation +%= 1;
@@ -362,7 +382,9 @@ pub fn Query(comptime T: type) type {
 
             const P = @TypeOf(params);
             const ti = @typeInfo(P);
-            if (ti != .@"struct") return error.BindAllExpectedStructOrTuple;
+            if (ti != .@"struct") {
+                return error.BindAllExpectedStructOrTuple;
+            }
             inline for (ti.@"struct".fields) |f| {
                 try self.appendParam(@field(params, f.name));
             }
@@ -499,13 +521,21 @@ pub fn Query(comptime T: type) type {
 fn toQueryParam(value: anytype) errors.ZiteError!QueryParam {
     const V = @TypeOf(value);
 
-    if (V == types.EpochMillis) return .{ .int = value.value };
-    if (V == types.OwnedText) return .{ .text = value.value };
-    if (V == types.OwnedBlob) return .{ .blob = value.value };
+    if (V == types.EpochMillis) {
+        return .{ .int = value.value };
+    }
+    if (V == types.OwnedText) {
+        return .{ .text = value.value };
+    }
+    if (V == types.OwnedBlob) {
+        return .{ .blob = value.value };
+    }
 
     switch (@typeInfo(V)) {
         .optional => {
-            if (value == null) return .null;
+            if (value == null) {
+                return .null;
+            }
             return toQueryParam(value.?);
         },
         .bool => return .{ .bool = value },
@@ -514,7 +544,9 @@ fn toQueryParam(value: anytype) errors.ZiteError!QueryParam {
         .@"enum" => return .{ .int = @as(i64, @intCast(@intFromEnum(value))) },
         .pointer => |p| switch (p.size) {
             .slice => {
-                if (p.child == u8) return .{ .text = value };
+                if (p.child == u8) {
+                    return .{ .text = value };
+                }
                 return error.UnsupportedBindType;
             },
             .one => {
@@ -528,7 +560,9 @@ fn toQueryParam(value: anytype) errors.ZiteError!QueryParam {
             else => return error.UnsupportedBindType,
         },
         .array => |a| {
-            if (a.child == u8) return .{ .text = value[0..] };
+            if (a.child == u8) {
+                return .{ .text = value[0..] };
+            }
             return error.UnsupportedBindType;
         },
         else => return error.UnsupportedBindType,

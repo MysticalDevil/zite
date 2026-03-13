@@ -66,11 +66,15 @@ pub fn getMeta(comptime T: type) Meta {
 /// True if the type defines a field matching the primary key.
 pub fn hasPrimaryKeyField(comptime T: type, comptime m: Meta) bool {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("hasPrimaryKeyField expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("hasPrimaryKeyField expects a struct type");
+    }
     const fields = ti.@"struct".fields;
 
     inline for (fields) |f| {
-        if (comptime isPk(f.name, m.primary_key)) return true;
+        if (comptime isPk(f.name, m.primary_key)) {
+            return true;
+        }
     }
     return false;
 }
@@ -78,7 +82,9 @@ pub fn hasPrimaryKeyField(comptime T: type, comptime m: Meta) bool {
 /// Returns true if the field is marked as skipped.
 pub fn isSkipped(comptime name: []const u8, comptime m: Meta) bool {
     inline for (m.skip) |s| {
-        if (comptime std.mem.eql(u8, name, s)) return true;
+        if (comptime std.mem.eql(u8, name, s)) {
+            return true;
+        }
     }
     return false;
 }
@@ -86,7 +92,9 @@ pub fn isSkipped(comptime name: []const u8, comptime m: Meta) bool {
 /// Returns column name for a field, honoring renames.
 pub fn columnName(comptime name: []const u8, comptime m: Meta) []const u8 {
     inline for (m.rename) |r| {
-        if (comptime std.mem.eql(u8, name, r.field)) return r.column;
+        if (comptime std.mem.eql(u8, name, r.field)) {
+            return r.column;
+        }
     }
     return name;
 }
@@ -99,14 +107,20 @@ pub fn pkColumnName(comptime m: Meta) []const u8 {
 /// Number of fields insertable for the given Meta.
 pub fn insertableCount(comptime T: type, comptime m: Meta) usize {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("insertableCount expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("insertableCount expects a struct type");
+    }
     const fields = ti.@"struct".fields;
 
     comptime var n: usize = 0;
     inline for (fields) |f| {
-        if (comptime isSkipped(f.name, m)) continue;
+        if (comptime isSkipped(f.name, m)) {
+            continue;
+        }
         const skip = comptime (m.skip_primary_key_on_insert and isPk(f.name, m.primary_key));
-        if (!skip) n += 1;
+        if (!skip) {
+            n += 1;
+        }
     }
     return n;
 }
@@ -114,13 +128,19 @@ pub fn insertableCount(comptime T: type, comptime m: Meta) usize {
 /// Number of fields included in UPDATE SET clause.
 pub fn updateSetCount(comptime T: type, comptime m: Meta) usize {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("updateSetCount expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("updateSetCount expects a struct type");
+    }
     const fields = ti.@"struct".fields;
 
     comptime var n: usize = 0;
     inline for (fields) |f| {
-        if (comptime isSkipped(f.name, m)) continue;
-        if (comptime isPk(f.name, m.primary_key)) continue;
+        if (comptime isSkipped(f.name, m)) {
+            continue;
+        }
+        if (comptime isPk(f.name, m.primary_key)) {
+            continue;
+        }
         n += 1;
     }
     return n;

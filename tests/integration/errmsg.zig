@@ -3,7 +3,9 @@ const orm = @import("zite");
 
 fn containsAny(hay: []const u8, needles: []const []const u8) bool {
     for (needles) |n| {
-        if (std.mem.indexOf(u8, hay, n) != null) return true;
+        if (std.mem.indexOf(u8, hay, n) != null) {
+            return true;
+        }
     }
     return false;
 }

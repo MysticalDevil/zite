@@ -75,7 +75,9 @@ pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) errors.Zit
 pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize) errors.ZiteError!void {
     comptime var i: usize = 1;
     inline while (i <= count) : (i += 1) {
-        if (i != 1) try list.appendSlice(gpa, ", ");
+        if (i != 1) {
+            try list.appendSlice(gpa, ", ");
+        }
         try list.append(gpa, '?');
         try list.print(gpa, "{}", .{i});
     }
@@ -84,16 +86,24 @@ pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize
 /// Writes insertable column list for T, skipping PK if configured.
 pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("writeInsertColumnList expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("writeInsertColumnList expects a struct type");
+    }
     const fields = ti.@"struct".fields;
 
     comptime var col_i: usize = 0;
     inline for (fields) |f| {
-        if (comptime meta.isSkipped(f.name, m)) continue;
+        if (comptime meta.isSkipped(f.name, m)) {
+            continue;
+        }
         const skip = comptime (m.skip_primary_key_on_insert and meta.isPk(f.name, m.primary_key));
-        if (skip) continue;
+        if (skip) {
+            continue;
+        }
 
-        if (col_i != 0) try list.appendSlice(gpa, ", ");
+        if (col_i != 0) {
+            try list.appendSlice(gpa, ", ");
+        }
         try writeIdent(list, gpa, meta.columnName(f.name, m));
         col_i += 1;
     }
@@ -102,15 +112,23 @@ pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type,
 /// Writes UPDATE SET clause for T (excluding PK).
 pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("writeUpdateSetClause expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("writeUpdateSetClause expects a struct type");
+    }
     const fields = ti.@"struct".fields;
 
     comptime var set_i: usize = 0;
     inline for (fields) |f| {
-        if (comptime meta.isSkipped(f.name, m)) continue;
-        if (comptime meta.isPk(f.name, m.primary_key)) continue;
+        if (comptime meta.isSkipped(f.name, m)) {
+            continue;
+        }
+        if (comptime meta.isPk(f.name, m.primary_key)) {
+            continue;
+        }
 
-        if (set_i != 0) try list.appendSlice(gpa, ", ");
+        if (set_i != 0) {
+            try list.appendSlice(gpa, ", ");
+        }
         try writeIdent(list, gpa, meta.columnName(f.name, m));
         try list.appendSlice(gpa, "=?");
         try list.print(gpa, "{}", .{set_i + 1});
@@ -120,7 +138,9 @@ pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, 
 
 fn fieldNameLen(comptime T: type) usize {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("fieldNameLen expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("fieldNameLen expects a struct type");
+    }
     const fields = ti.@"struct".fields;
     comptime var total: usize = 0;
     inline for (fields) |f| total += f.name.len;

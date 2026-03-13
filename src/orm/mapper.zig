@@ -18,17 +18,23 @@ pub const FindManyOptions = engine.sql.FindManyOptions;
 
 fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("pkFieldType expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("pkFieldType expects a struct type");
+    }
 
     inline for (ti.@"struct".fields) |f| {
-        if (comptime meta.isPk(f.name, m.primary_key)) return f.type;
+        if (comptime meta.isPk(f.name, m.primary_key)) {
+            return f.type;
+        }
     }
     @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " ++ m.primary_key);
 }
 
 fn pkFieldValue(comptime T: type, entity: T, comptime m: meta.Meta) pkFieldType(T, m) {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("pkFieldValue expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("pkFieldValue expects a struct type");
+    }
 
     inline for (ti.@"struct".fields) |f| {
         if (comptime meta.isPk(f.name, m.primary_key)) {
@@ -39,7 +45,9 @@ fn pkFieldValue(comptime T: type, entity: T, comptime m: meta.Meta) pkFieldType(
 }
 
 fn existsById(comptime T: type, db: *Db, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!bool {
-    if (@typeInfo(T) != .@"struct") @compileError("existsById expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("existsById expects a struct type");
+    }
 
     const m = comptime meta.getMeta(T);
     comptime {
@@ -77,7 +85,9 @@ pub fn Rows(comptime T: type) type {
         /// the statement to avoid leaks. Returned rows must be freed with
         /// `freeOwnedRow` when they contain owned fields.
         pub fn next(self: *Self) errors.ZiteError!?T {
-            if (self.done) return null;
+            if (self.done) {
+                return null;
+            }
 
             errdefer {
                 self.st.deinit();
@@ -99,7 +109,9 @@ pub fn Rows(comptime T: type) type {
 
             comptime var col: usize = 0;
             inline for (fields) |f| {
-                if (comptime meta.isSkipped(f.name, m)) continue;
+                if (comptime meta.isSkipped(f.name, m)) {
+                    continue;
+                }
                 const v = try engine.row.readValue(f.type, &self.st, self.allocator, @as(i32, @intCast(col)));
                 @field(out, f.name) = v;
                 col += 1;
@@ -136,7 +148,9 @@ pub fn RowsOwned(comptime T: type) type {
 /// The caller is responsible for freeing any owned fields in `entity`.
 pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("insert expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("insert expects a struct type");
+    }
 
     const m = comptime meta.getMeta(T);
     comptime {
@@ -145,7 +159,9 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
         }
     }
     const ncols = comptime meta.insertableCount(T, m);
-    if (ncols == 0) return error.NoInsertableFields;
+    if (ncols == 0) {
+        return error.NoInsertableFields;
+    }
 
     const sql = try engine.sql.buildInsertSql(T, db);
     var st = try engine.sql.prepareOwnedSql(db, sql);
@@ -161,8 +177,12 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
 /// The caller is responsible for freeing any owned fields in `entities`.
 pub fn insertMany(comptime T: type, db: *Db, entities: []const T) errors.ZiteError!usize {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("insertMany expects a struct type");
-    if (entities.len == 0) return 0;
+    if (ti != .@"struct") {
+        @compileError("insertMany expects a struct type");
+    }
+    if (entities.len == 0) {
+        return 0;
+    }
 
     const m = comptime meta.getMeta(T);
     comptime {
@@ -171,7 +191,9 @@ pub fn insertMany(comptime T: type, db: *Db, entities: []const T) errors.ZiteErr
         }
     }
     const ncols = comptime meta.insertableCount(T, m);
-    if (ncols == 0) return error.NoInsertableFields;
+    if (ncols == 0) {
+        return error.NoInsertableFields;
+    }
 
     const sql = try engine.sql.buildInsertSql(T, db);
     var st = try engine.sql.prepareOwnedSql(db, sql);
@@ -189,7 +211,9 @@ pub fn insertMany(comptime T: type, db: *Db, entities: []const T) errors.ZiteErr
 /// The caller is responsible for freeing any owned fields in `entity`.
 pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("update expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("update expects a struct type");
+    }
 
     const m = comptime meta.getMeta(T);
     comptime {
@@ -205,7 +229,9 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     }
 
     const set_count = comptime meta.updateSetCount(T, m);
-    if (set_count == 0) return error.NoUpdatableFields;
+    if (set_count == 0) {
+        return error.NoUpdatableFields;
+    }
 
     const sql = try engine.sql.buildUpdateSql(T, db);
     var st = try engine.sql.prepareOwnedSql(db, sql);
@@ -220,7 +246,9 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
 /// If a row with the same PK exists, updates it; otherwise inserts a new row.
 /// The caller is responsible for freeing any owned fields in `entity`.
 pub fn upsert(comptime T: type, db: *Db, entity: T) errors.ZiteError!UpsertResult {
-    if (@typeInfo(T) != .@"struct") @compileError("upsert expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("upsert expects a struct type");
+    }
     const m = comptime meta.getMeta(T);
     const pk_value = pkFieldValue(T, entity, m);
 
@@ -235,7 +263,9 @@ pub fn upsert(comptime T: type, db: *Db, entity: T) errors.ZiteError!UpsertResul
 
 /// Deletes a record by primary key; returns number of rows changed.
 pub fn deleteById(comptime T: type, db: *Db, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!i32 {
-    if (@typeInfo(T) != .@"struct") @compileError("deleteById expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("deleteById expects a struct type");
+    }
 
     const m = comptime meta.getMeta(T);
     comptime {
@@ -258,9 +288,13 @@ pub fn deleteById(comptime T: type, db: *Db, id: pkFieldType(T, meta.getMeta(T))
 /// where_clause is provided by caller (excluding "WHERE" prefix).
 /// params is a tuple/struct (e.g., .{ 123, "alice" }), bound to ?1..?N.
 pub fn deleteWhere(comptime T: type, comptime P: type, db: *Db, where_clause: []const u8, params: P) errors.ZiteError!i32 {
-    if (@typeInfo(T) != .@"struct") @compileError("deleteWhere expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("deleteWhere expects a struct type");
+    }
     const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
-    if (trimmed.len == 0) return error.EmptyWhereClause;
+    if (trimmed.len == 0) {
+        return error.EmptyWhereClause;
+    }
 
     const sql = try engine.sql.buildDeleteWhereSql(T, db, where_clause);
     var st = try engine.sql.prepareOwnedSql(db, sql);
@@ -276,7 +310,9 @@ pub fn deleteWhere(comptime T: type, comptime P: type, db: *Db, where_clause: []
 /// Returned rows must be freed with `freeOwnedRow` when they contain owned fields.
 pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?T {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("findById expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("findById expects a struct type");
+    }
 
     const m = comptime meta.getMeta(T);
     comptime {
@@ -291,7 +327,9 @@ pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkF
     try st.bindOne(1, id);
 
     const r = try st.step();
-    if (r == .done) return null;
+    if (r == .done) {
+        return null;
+    }
 
     var out = try engine.row.readStruct(T, &st, allocator);
 
@@ -319,7 +357,9 @@ pub fn findByIdOwned(comptime T: type, db: *Db, allocator: std.mem.Allocator, id
 /// Returned rows must be freed with `freeOwnedRow` when they contain owned fields.
 pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!?T {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("findOne expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("findOne expects a struct type");
+    }
 
     const sql = try engine.sql.buildFindOneSql(T, db, where_clause);
     var st = try engine.sql.prepareOwnedSql(db, sql);
@@ -328,7 +368,9 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     try st.bindAll(params);
 
     const r = try st.step();
-    if (r == .done) return null;
+    if (r == .done) {
+        return null;
+    }
 
     var out = try engine.row.readStruct(T, &st, allocator);
 

@@ -50,7 +50,9 @@ pub const Stmt = struct {
 
     /// Finalizes the underlying SQLite statement (idempotent).
     pub fn finalize(self: *Self) errors.ZiteError!void {
-        if (self.finalized) return;
+        if (self.finalized) {
+            return;
+        }
 
         const rc = raw.stmt.finalize(self.stmt);
         self.finalized = true;
@@ -60,11 +62,15 @@ pub const Stmt = struct {
         };
 
         if (rc != db_ok) {
-            if (unregister_err) |err| return err;
+            if (unregister_err) |err| {
+                return err;
+            }
             diag.logSqlite(self.db, rc, "sqlite3_finalize", null);
             return sqlite_errors.mapSqliteRc(rc, error.SqliteFinalizeFailed);
         }
-        if (unregister_err) |err| return err;
+        if (unregister_err) |err| {
+            return err;
+        }
     }
 
     /// Alias for finalize() to match deinit patterns.
@@ -256,25 +262,33 @@ pub const Stmt = struct {
     pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
         try self.ensureOpen();
         const p = raw.stmt.columnText(self.stmt, col);
-        if (p == null) return null;
+        if (p == null) {
+            return null;
+        }
 
         const n = raw.stmt.columnBytes(self.stmt, col);
         const len: usize = @intCast(n);
 
         const src: [*]const u8 = @ptrCast(p);
         const out = try a.alloc(u8, len);
-        if (len != 0) std.mem.copyForwards(u8, out, src[0..len]);
+        if (len != 0) {
+            std.mem.copyForwards(u8, out, src[0..len]);
+        }
         return out;
     }
 
     /// Returns borrowed TEXT data without copying.
     /// The returned slice is valid only until the next step/reset/finalize.
     pub fn colTextBorrowed(self: *Self, col: i32) errors.ZiteError!?[]const u8 {
-        if (try self.colIsNull(col)) return null;
+        if (try self.colIsNull(col)) {
+            return null;
+        }
 
         const n = raw.stmt.columnBytes(self.stmt, col);
         const len: usize = @intCast(n);
-        if (len == 0) return &.{};
+        if (len == 0) {
+            return &.{};
+        }
 
         const p = raw.stmt.columnText(self.stmt, col) orelse return &.{};
         const src: [*]const u8 = @ptrCast(p);
@@ -285,25 +299,33 @@ pub const Stmt = struct {
     pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
         try self.ensureOpen();
         const p = raw.stmt.columnBlob(self.stmt, col);
-        if (p == null) return null;
+        if (p == null) {
+            return null;
+        }
 
         const n = raw.stmt.columnBytes(self.stmt, col);
         const len: usize = @intCast(n);
 
         const src: [*]const u8 = @ptrCast(p);
         const out = try a.alloc(u8, len);
-        if (len != 0) std.mem.copyForwards(u8, out, src[0..len]);
+        if (len != 0) {
+            std.mem.copyForwards(u8, out, src[0..len]);
+        }
         return out;
     }
 
     /// Returns borrowed BLOB data without copying.
     /// The returned slice is valid only until the next step/reset/finalize.
     pub fn colBlobBorrowed(self: *Self, col: i32) errors.ZiteError!?[]const u8 {
-        if (try self.colIsNull(col)) return null;
+        if (try self.colIsNull(col)) {
+            return null;
+        }
 
         const n = raw.stmt.columnBytes(self.stmt, col);
         const len: usize = @intCast(n);
-        if (len == 0) return &.{};
+        if (len == 0) {
+            return &.{};
+        }
 
         const p = raw.stmt.columnBlob(self.stmt, col) orelse return &.{};
         const src: [*]const u8 = @ptrCast(p);
@@ -311,7 +333,9 @@ pub const Stmt = struct {
     }
 
     fn ensureOpen(self: *const Self) errors.ZiteError!void {
-        if (self.finalized) return error.StatementFinalized;
+        if (self.finalized) {
+            return error.StatementFinalized;
+        }
     }
 };
 

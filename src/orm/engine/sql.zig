@@ -17,13 +17,19 @@ fn appendSelectColumns(
     b: *sqlutil.SqlBuilder,
 ) errors.ZiteError!void {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("appendSelectColumns expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("appendSelectColumns expects a struct type");
+    }
 
     const fields = ti.@"struct".fields;
     comptime var i: usize = 0;
     inline for (fields) |f| {
-        if (comptime meta.isSkipped(f.name, m)) continue;
-        if (i != 0) try b.lit(", ");
+        if (comptime meta.isSkipped(f.name, m)) {
+            continue;
+        }
+        if (i != 0) {
+            try b.lit(", ");
+        }
         try b.ident(meta.columnName(f.name, m));
         i += 1;
     }
@@ -37,7 +43,9 @@ fn toOwnedSql(
 }
 
 pub fn buildExistsByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
-    if (@typeInfo(T) != .@"struct") @compileError("buildExistsByIdSql expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("buildExistsByIdSql expects a struct type");
+    }
     const m = comptime meta.getMeta(T);
 
     var buf: std.ArrayList(u8) = .empty;
@@ -94,7 +102,9 @@ pub fn buildUpdateSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
 }
 
 pub fn buildDeleteByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
-    if (@typeInfo(T) != .@"struct") @compileError("buildDeleteByIdSql expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("buildDeleteByIdSql expects a struct type");
+    }
     const m = comptime meta.getMeta(T);
 
     var buf: std.ArrayList(u8) = .empty;
@@ -111,7 +121,9 @@ pub fn buildDeleteByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
 }
 
 pub fn buildDeleteWhereSql(comptime T: type, db: *Db, where_clause: []const u8) errors.ZiteError![]u8 {
-    if (@typeInfo(T) != .@"struct") @compileError("buildDeleteWhereSql expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("buildDeleteWhereSql expects a struct type");
+    }
     const m = comptime meta.getMeta(T);
     const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
 
@@ -131,7 +143,9 @@ pub fn buildDeleteWhereSql(comptime T: type, db: *Db, where_clause: []const u8) 
 }
 
 pub fn buildFindByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
-    if (@typeInfo(T) != .@"struct") @compileError("buildFindByIdSql expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("buildFindByIdSql expects a struct type");
+    }
     const m = comptime meta.getMeta(T);
 
     var buf: std.ArrayList(u8) = .empty;
@@ -150,7 +164,9 @@ pub fn buildFindByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
 }
 
 pub fn buildFindOneSql(comptime T: type, db: *Db, where_clause: []const u8) errors.ZiteError![]u8 {
-    if (@typeInfo(T) != .@"struct") @compileError("buildFindOneSql expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("buildFindOneSql expects a struct type");
+    }
     const m = comptime meta.getMeta(T);
     const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
 
@@ -177,7 +193,9 @@ pub fn buildFindManySql(
     where_clause: []const u8,
     opts: FindManyOptions,
 ) errors.ZiteError![]u8 {
-    if (@typeInfo(T) != .@"struct") @compileError("buildFindManySql expects a struct type");
+    if (@typeInfo(T) != .@"struct") {
+        @compileError("buildFindManySql expects a struct type");
+    }
     const m = comptime meta.getMeta(T);
     const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
     const default_order = std.mem.trim(u8, m.order_by, " \t\r\n");
@@ -212,7 +230,9 @@ pub fn buildFindManySql(
         try b.print("{}", .{limit});
     }
     if (opts.offset) |offset| {
-        if (opts.limit == null) try b.lit(" LIMIT -1");
+        if (opts.limit == null) {
+            try b.lit(" LIMIT -1");
+        }
         try b.lit(" OFFSET ");
         try b.print("{}", .{offset});
     }

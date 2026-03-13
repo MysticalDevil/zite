@@ -20,7 +20,9 @@ pub fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator,
 
     switch (@typeInfo(FieldT)) {
         .optional => |o| {
-            if (try st.colIsNull(col)) return null;
+            if (try st.colIsNull(col)) {
+                return null;
+            }
             const Child = o.child;
             const v = try readValue(Child, st, allocator, col);
             return @as(FieldT, v);
@@ -44,9 +46,15 @@ pub fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator,
 }
 
 pub fn BorrowedFieldType(comptime FieldT: type) type {
-    if (FieldT == types.OwnedText) return []const u8;
-    if (FieldT == types.OwnedBlob) return []const u8;
-    if (FieldT == types.EpochMillis) return types.EpochMillis;
+    if (FieldT == types.OwnedText) {
+        return []const u8;
+    }
+    if (FieldT == types.OwnedBlob) {
+        return []const u8;
+    }
+    if (FieldT == types.EpochMillis) {
+        return types.EpochMillis;
+    }
 
     return switch (@typeInfo(FieldT)) {
         .optional => |o| ?BorrowedFieldType(o.child),
@@ -67,7 +75,9 @@ pub fn readValueBorrowed(comptime FieldT: type, st: *Stmt, col: i32) errors.Zite
 
     switch (@typeInfo(FieldT)) {
         .optional => |o| {
-            if (try st.colIsNull(col)) return null;
+            if (try st.colIsNull(col)) {
+                return null;
+            }
             const Child = o.child;
             return try readValueBorrowed(Child, st, col);
         },
@@ -108,7 +118,9 @@ fn intToEnumChecked(comptime E: type, v: i64) errors.ZiteError!E {
 
 pub fn readStruct(comptime T: type, st: *Stmt, allocator: std.mem.Allocator) errors.ZiteError!T {
     const ti = @typeInfo(T);
-    if (ti != .@"struct") @compileError("readStruct expects a struct type");
+    if (ti != .@"struct") {
+        @compileError("readStruct expects a struct type");
+    }
     const m = comptime meta.getMeta(T);
 
     var out: T = std.mem.zeroes(T);
@@ -117,7 +129,9 @@ pub fn readStruct(comptime T: type, st: *Stmt, allocator: std.mem.Allocator) err
     const fields = ti.@"struct".fields;
     comptime var col: usize = 0;
     inline for (fields) |f| {
-        if (comptime meta.isSkipped(f.name, m)) continue;
+        if (comptime meta.isSkipped(f.name, m)) {
+            continue;
+        }
         const v = try readValue(f.type, st, allocator, @as(i32, @intCast(col)));
         @field(out, f.name) = v;
         col += 1;

@@ -28,20 +28,26 @@ pub const Db = struct {
         const TxSelf = @This();
 
         pub fn commit(self: *TxSelf) errors.ZiteError!void {
-            if (self.finished) return;
+            if (self.finished) {
+                return;
+            }
             try self.db.exec("COMMIT;");
             self.finished = true;
         }
 
         pub fn rollback(self: *TxSelf) errors.ZiteError!void {
-            if (self.finished) return;
+            if (self.finished) {
+                return;
+            }
             try self.db.exec("ROLLBACK;");
             self.finished = true;
         }
 
         /// Rolls back unfinished transactions. Ignores rollback errors in cleanup paths.
         pub fn deinit(self: *TxSelf) void {
-            if (self.finished) return;
+            if (self.finished) {
+                return;
+            }
             self.db.exec("ROLLBACK;") catch |err| {
                 std.log.warn("sqlite warning what=tx_rollback_failed err={}", .{err});
             };
@@ -116,7 +122,9 @@ pub const Db = struct {
     /// The returned slice is only valid until the next sqlite call.
     pub fn errmsg(self: *Db) []const u8 {
         const p = raw.db.errmsg(self.handle);
-        if (p == null) return "";
+        if (p == null) {
+            return "";
+        }
         return std.mem.span(p.?);
     }
 
