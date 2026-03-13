@@ -14,6 +14,65 @@ pub const OrderDir = enum {
     desc,
 };
 
+pub fn BorrowedRow(comptime T: type) type {
+    return struct {
+        st: *Stmt,
+
+        const Self = @This();
+        const m = meta.getMeta(T);
+
+        pub fn get(self: Self, comptime field: []const u8) errors.ZiteError!BorrowedFieldType(T, field) {
+            const col = comptime fieldColumnIndex(field);
+            const FieldT = comptime fieldType(field);
+            return engine.row.readValueBorrowed(FieldT, self.st, @as(i32, @intCast(col)));
+        }
+
+        fn fieldType(comptime field: []const u8) type {
+            const ti = @typeInfo(T);
+            if (ti != .@"struct") @compileError("BorrowedRow requires a struct model");
+
+            inline for (ti.@"struct".fields) |f| {
+                if (comptime std.mem.eql(u8, f.name, field)) {
+                    if (comptime meta.isSkipped(f.name, m)) {
+                        @compileError("Field " ++ field ++ " is skipped in Meta");
+                    }
+                    return f.type;
+                }
+            }
+            @compileError("Unknown field for " ++ @typeName(T) ++ ": " ++ field);
+        }
+
+        fn fieldColumnIndex(comptime field: []const u8) usize {
+            const ti = @typeInfo(T);
+            if (ti != .@"struct") @compileError("BorrowedRow requires a struct model");
+
+            comptime var col: usize = 0;
+            inline for (ti.@"struct".fields) |f| {
+                if (comptime meta.isSkipped(f.name, m)) continue;
+                if (comptime std.mem.eql(u8, f.name, field)) return col;
+                col += 1;
+            }
+            @compileError("Unknown field for " ++ @typeName(T) ++ ": " ++ field);
+        }
+    };
+}
+
+pub fn BorrowedFieldType(comptime T: type, comptime field: []const u8) type {
+    const m = meta.getMeta(T);
+    const ti = @typeInfo(T);
+    if (ti != .@"struct") @compileError("BorrowedFieldType requires a struct model");
+
+    inline for (ti.@"struct".fields) |f| {
+        if (comptime std.mem.eql(u8, f.name, field)) {
+            if (comptime meta.isSkipped(f.name, m)) {
+                @compileError("Field " ++ field ++ " is skipped in Meta");
+            }
+            return engine.row.BorrowedFieldType(f.type);
+        }
+    }
+    @compileError("Unknown field for " ++ @typeName(T) ++ ": " ++ field);
+}
+
 const QueryParam = union(enum) {
     null,
     int: i64,
@@ -32,6 +91,22 @@ pub fn OwnedRow(comptime T: type) type {
 
         pub fn deinit(self: *Self) void {
             engine.row.freeOwnedRow(T, self.allocator, &self.value);
+        }
+    };
+}
+
+pub fn BorrowedOne(comptime T: type) type {
+    return struct {
+        rows: RowsBorrowed(T),
+
+        const Self = @This();
+
+        pub fn get(self: *Self, comptime field: []const u8) errors.ZiteError!BorrowedFieldType(T, field) {
+            return (BorrowedRow(T){ .st = &self.rows.st }).get(field);
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.rows.deinit();
         }
     };
 }
@@ -96,8 +171,23 @@ pub fn Repository(comptime T: type) type {
             return null;
         }
 
+        pub fn findByIdBorrowed(self: *Self, id: anytype) errors.ZiteError!?BorrowedOne(T) {
+            const pk_field = comptime meta.getMeta(T).primary_key;
+            var q = self.query();
+            defer q.deinit();
+            try q.whereEq(pk_field, id);
+            return q.firstBorrowed();
+        }
+
         pub fn findOneRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!?T {
             return mapper.findOne(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
+        }
+
+        pub fn findOneBorrowedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!?BorrowedOne(T) {
+            var q = self.query();
+            defer q.deinit();
+            try q.whereRaw(where_clause, params);
+            return q.firstBorrowed();
         }
 
         pub fn findManyRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!mapper.Rows(T) {
@@ -150,6 +240,40 @@ pub fn RowsOwned(comptime T: type) type {
 
             const value = try engine.row.readStruct(T, &self.st, self.allocator);
             return wrapOwnedRow(T, self.allocator, value);
+        }
+    };
+}
+
+pub fn RowsBorrowed(comptime T: type) type {
+    return struct {
+        st: Stmt,
+        done: bool = false,
+
+        const Self = @This();
+
+        pub fn deinit(self: *Self) void {
+            if (!self.done) {
+                self.st.deinit();
+                self.done = true;
+            }
+        }
+
+        pub fn next(self: *Self) errors.ZiteError!?BorrowedRow(T) {
+            if (self.done) return null;
+
+            errdefer {
+                self.st.deinit();
+                self.done = true;
+            }
+
+            const r = try self.st.step();
+            if (r == .done) {
+                self.st.deinit();
+                self.done = true;
+                return null;
+            }
+
+            return .{ .st = &self.st };
         }
     };
 }
@@ -234,16 +358,22 @@ pub fn Query(comptime T: type) type {
             return rows.next();
         }
 
-        pub fn firstBorrowed(self: *Self) errors.ZiteError!?OwnedRow(T) {
-            return self.firstOwned();
+        pub fn firstBorrowed(self: *Self) errors.ZiteError!?BorrowedOne(T) {
+            var rows = try self.iterateBorrowedWithLimit(1);
+            if (try rows.next()) |_| {
+                return .{
+                    .rows = rows,
+                };
+            }
+            return null;
         }
 
         pub fn iterateOwned(self: *Self) errors.ZiteError!RowsOwned(T) {
             return self.iterateOwnedWithLimit(self.limit);
         }
 
-        pub fn iterateBorrowed(self: *Self) errors.ZiteError!RowsOwned(T) {
-            return self.iterateOwned();
+        pub fn iterateBorrowed(self: *Self) errors.ZiteError!RowsBorrowed(T) {
+            return self.iterateBorrowedWithLimit(self.limit);
         }
 
         pub fn allOwned(self: *Self) errors.ZiteError![]OwnedRow(T) {
@@ -278,6 +408,27 @@ pub fn Query(comptime T: type) type {
             return .{
                 .st = st,
                 .allocator = self.owned_allocator,
+                .done = false,
+            };
+        }
+
+        fn iterateBorrowedWithLimit(self: *Self, limit_override: ?usize) errors.ZiteError!RowsBorrowed(T) {
+            const opts: engine.sql.FindManyOptions = .{
+                .order_by = if (self.order_buf.items.len == 0) null else self.order_buf.items,
+                .limit = if (limit_override) |n| n else self.limit,
+                .offset = self.offset,
+            };
+
+            const sql = try engine.sql.buildFindManySql(T, self.db, self.where_buf.items, opts);
+            var st = try engine.sql.prepareOwnedSql(self.db, sql);
+            errdefer st.deinit();
+
+            for (self.params.items, 0..) |p, i| {
+                try bindQueryParam(&st, @as(i32, @intCast(i + 1)), p);
+            }
+
+            return .{
+                .st = st,
                 .done = false,
             };
         }
@@ -323,6 +474,25 @@ fn toQueryParam(value: anytype) errors.ZiteError!QueryParam {
         .int, .comptime_int => return .{ .int = @as(i64, @intCast(value)) },
         .float, .comptime_float => return .{ .float = @as(f64, @floatCast(value)) },
         .@"enum" => return .{ .int = @as(i64, @intCast(@intFromEnum(value))) },
+        .pointer => |p| switch (p.size) {
+            .slice => {
+                if (p.child == u8) return .{ .text = value };
+                return error.UnsupportedBindType;
+            },
+            .one => {
+                const Child = p.child;
+                const cti = @typeInfo(Child);
+                if (cti == .array and cti.array.child == u8) {
+                    return .{ .text = value[0..] };
+                }
+                return error.UnsupportedBindType;
+            },
+            else => return error.UnsupportedBindType,
+        },
+        .array => |a| {
+            if (a.child == u8) return .{ .text = value[0..] };
+            return error.UnsupportedBindType;
+        },
         else => return error.UnsupportedBindType,
     }
 }

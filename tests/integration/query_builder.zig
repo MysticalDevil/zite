@@ -57,3 +57,55 @@ test "orm.query: whereEq/orderBy/limit/offset/whereRaw" {
     try std.testing.expectEqual(@as(usize, 1), many.len);
     try std.testing.expectEqualStrings("carol", many[0].value.name.value);
 }
+
+test "orm.query: iterateBorrowed and repo borrowed lookups are zero-copy" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer n2.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
+    _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 22) });
+
+    var q = repo.query();
+    defer q.deinit();
+    try q.orderBy("id", .asc);
+
+    var rows = try q.iterateBorrowed();
+    defer rows.deinit();
+
+    const r1 = (try rows.next()).?;
+    try std.testing.expectEqualStrings("alice", try r1.get("name"));
+    try std.testing.expectEqual(@as(i64, 11), (try r1.get("age")).?);
+
+    const r2 = (try rows.next()).?;
+    try std.testing.expectEqualStrings("bob", try r2.get("name"));
+    try std.testing.expectEqual(@as(i64, 22), (try r2.get("age")).?);
+    try std.testing.expect((try rows.next()) == null);
+
+    if (try repo.findByIdBorrowed(@as(i64, 2))) |one| {
+        var got = one;
+        defer got.deinit();
+        try std.testing.expectEqualStrings("bob", try got.get("name"));
+    } else {
+        return error.TestExpectedRow;
+    }
+
+    if (try repo.findOneBorrowedRaw("\"name\"=?1", .{"alice"})) |one_raw| {
+        var got_raw = one_raw;
+        defer got_raw.deinit();
+        try std.testing.expectEqual(@as(i64, 1), try got_raw.get("id"));
+        try std.testing.expectEqualStrings("alice", try got_raw.get("name"));
+    } else {
+        return error.TestExpectedRow;
+    }
+}

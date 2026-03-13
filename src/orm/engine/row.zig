@@ -43,6 +43,53 @@ pub fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator,
     }
 }
 
+pub fn BorrowedFieldType(comptime FieldT: type) type {
+    if (FieldT == types.OwnedText) return []const u8;
+    if (FieldT == types.OwnedBlob) return []const u8;
+    if (FieldT == types.EpochMillis) return types.EpochMillis;
+
+    return switch (@typeInfo(FieldT)) {
+        .optional => |o| ?BorrowedFieldType(o.child),
+        else => FieldT,
+    };
+}
+
+pub fn readValueBorrowed(comptime FieldT: type, st: *Stmt, col: i32) errors.ZiteError!BorrowedFieldType(FieldT) {
+    if (FieldT == types.EpochMillis) {
+        return .{ .value = st.colInt(col) };
+    }
+    if (FieldT == types.OwnedText) {
+        return st.colTextBorrowed(col) orelse return error.UnexpectedNull;
+    }
+    if (FieldT == types.OwnedBlob) {
+        return st.colBlobBorrowed(col) orelse return error.UnexpectedNull;
+    }
+
+    switch (@typeInfo(FieldT)) {
+        .optional => |o| {
+            if (st.colIsNull(col)) return null;
+            const Child = o.child;
+            return try readValueBorrowed(Child, st, col);
+        },
+        .bool => return st.colBool(col),
+        .int, .comptime_int => {
+            const v = st.colInt(col);
+            return @as(FieldT, @intCast(v));
+        },
+        .float, .comptime_float => {
+            const v = st.colDouble(col);
+            return @as(FieldT, @floatCast(v));
+        },
+        .@"enum" => {
+            const v = st.colInt(col);
+            const tag_ty = @typeInfo(FieldT).@"enum".tag_type;
+            return @enumFromInt(@as(tag_ty, @intCast(v)));
+        },
+        .pointer => return error.UnsupportedColumnType,
+        else => return error.UnsupportedColumnType,
+    }
+}
+
 pub fn readStruct(comptime T: type, st: *Stmt, allocator: std.mem.Allocator) errors.ZiteError!T {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("readStruct expects a struct type");

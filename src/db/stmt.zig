@@ -231,6 +231,20 @@ pub const Stmt = struct {
         return out;
     }
 
+    /// Returns borrowed TEXT data without copying.
+    /// The returned slice is valid only until the next step/reset/finalize.
+    pub fn colTextBorrowed(self: *Self, col: i32) ?[]const u8 {
+        if (self.colIsNull(col)) return null;
+
+        const n = raw.stmt.columnBytes(self.stmt, col);
+        const len: usize = @intCast(n);
+        if (len == 0) return &.{};
+
+        const p = raw.stmt.columnText(self.stmt, col) orelse return &.{};
+        const src: [*]const u8 = @ptrCast(p);
+        return src[0..len];
+    }
+
     /// Returns an owned copy of BLOB data (caller frees with allocator).
     pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
         const p = raw.stmt.columnBlob(self.stmt, col);
@@ -243,6 +257,20 @@ pub const Stmt = struct {
         const out = try a.alloc(u8, len);
         if (len != 0) std.mem.copyForwards(u8, out, src[0..len]);
         return out;
+    }
+
+    /// Returns borrowed BLOB data without copying.
+    /// The returned slice is valid only until the next step/reset/finalize.
+    pub fn colBlobBorrowed(self: *Self, col: i32) ?[]const u8 {
+        if (self.colIsNull(col)) return null;
+
+        const n = raw.stmt.columnBytes(self.stmt, col);
+        const len: usize = @intCast(n);
+        if (len == 0) return &.{};
+
+        const p = raw.stmt.columnBlob(self.stmt, col) orelse return &.{};
+        const src: [*]const u8 = @ptrCast(p);
+        return src[0..len];
     }
 };
 
@@ -360,4 +388,26 @@ test "stmt: colTextOwned/colBlobOwned propagate OutOfMemory" {
         error.OutOfMemory,
         st.colBlobOwned(fail_blob_state.allocator(), 1),
     );
+}
+
+test "stmt: colTextBorrowed/colBlobBorrowed zero-copy reads" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    var st = try Stmt.init(&db, "SELECT ?1, ?2, ?3, ?4;");
+    defer st.deinit();
+    try st.bindText(1, "abc");
+    try st.bindBlob(2, &[_]u8{ 7, 8, 9 });
+    try st.bindText(3, "");
+    try st.bindNull(4);
+
+    try std.testing.expectEqual(StepResult.row, try st.step());
+
+    const t = st.colTextBorrowed(0).?;
+    try std.testing.expectEqualStrings("abc", t);
+    const b = st.colBlobBorrowed(1).?;
+    try std.testing.expect(std.mem.eql(u8, &[_]u8{ 7, 8, 9 }, b));
+    try std.testing.expectEqual(@as(usize, 0), st.colTextBorrowed(2).?.len);
+    try std.testing.expect(st.colBlobBorrowed(3) == null);
 }
