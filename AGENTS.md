@@ -30,7 +30,6 @@
 - Tests are written with `zig test` via `zig build test` and `zig build itest`.
 - Integration tests live in `tests/integration/*.zig` and are pulled into `tests/itest.zig`.
 - Name new integration tests as `tests/integration/<feature>.zig` and wire them into `tests/itest.zig`.
-- The build uses `tests/test_runner_simple.zig` to run tests without the server protocol.
 
 ## Zig 0.16 Notes
 - This branch targets Zig 0.16 and does not preserve compatibility with older Zig versions.

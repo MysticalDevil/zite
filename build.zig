@@ -24,10 +24,9 @@ pub fn build(b: *std.Build) void {
     zite_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
     zite_mod.addImport("build_options", options_mod);
 
-    // Unit tests for library module (simple test runner avoids server mode).
+    // Unit tests for library module.
     const unit_tests = b.addTest(.{
         .root_module = zite_mod,
-        .test_runner = .{ .path = b.path("tests/test_runner_simple.zig"), .mode = .simple },
     });
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
@@ -46,7 +45,6 @@ pub fn build(b: *std.Build) void {
 
     const unit_file_tests = b.addTest(.{
         .root_module = unit_file_mod,
-        .test_runner = .{ .path = b.path("tests/test_runner_simple.zig"), .mode = .simple },
     });
     const run_unit_file_tests = b.addRunArtifact(unit_file_tests);
     test_step.dependOn(&run_unit_file_tests.step);
@@ -66,7 +64,6 @@ pub fn build(b: *std.Build) void {
 
     const itests = b.addTest(.{
         .root_module = it_mod,
-        .test_runner = .{ .path = b.path("tests/test_runner_simple.zig"), .mode = .simple },
     });
     const run_itests = b.addRunArtifact(itests);
 
