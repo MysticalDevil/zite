@@ -156,6 +156,10 @@ pub fn Repository(comptime T: type) type {
             return mapper.deleteWhere(T, @TypeOf(params), self.db, where_clause, params);
         }
 
+        pub fn beginTx(self: *Self, mode: Db.TxMode) errors.ZiteError!Db.Tx {
+            return self.db.beginTx(mode);
+        }
+
         pub fn findById(self: *Self, id: anytype) errors.ZiteError!?T {
             return mapper.findById(T, self.db, self.owned_allocator, id);
         }

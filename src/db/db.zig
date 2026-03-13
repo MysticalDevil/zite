@@ -15,6 +15,38 @@ pub const Db = struct {
 
     const Self = @This();
 
+    pub const TxMode = enum {
+        deferred,
+        immediate,
+        exclusive,
+    };
+
+    pub const Tx = struct {
+        db: *Self,
+        finished: bool = false,
+
+        const TxSelf = @This();
+
+        pub fn commit(self: *TxSelf) errors.ZiteError!void {
+            if (self.finished) return;
+            try self.db.exec("COMMIT;");
+            self.finished = true;
+        }
+
+        pub fn rollback(self: *TxSelf) errors.ZiteError!void {
+            if (self.finished) return;
+            try self.db.exec("ROLLBACK;");
+            self.finished = true;
+        }
+
+        /// Rolls back unfinished transactions. Ignores rollback errors in cleanup paths.
+        pub fn deinit(self: *TxSelf) void {
+            if (self.finished) return;
+            _ = self.db.exec("ROLLBACK;") catch {};
+            self.finished = true;
+        }
+    };
+
     /// Opens a SQLite database at the provided path.
     /// Caller must `deinit()` when finished.
     pub fn open(allocator: std.mem.Allocator, path: []const u8) errors.ZiteError!Self {
@@ -67,6 +99,15 @@ pub const Db = struct {
             diag.logSqlite(self, rc, "sqlite3_exec", sql);
             return sqlite_errors.mapSqliteRc(rc, error.SqliteExecFailed);
         }
+    }
+
+    pub fn beginTx(self: *Self, mode: TxMode) errors.ZiteError!Tx {
+        switch (mode) {
+            .deferred => try self.exec("BEGIN;"),
+            .immediate => try self.exec("BEGIN IMMEDIATE;"),
+            .exclusive => try self.exec("BEGIN EXCLUSIVE;"),
+        }
+        return .{ .db = self };
     }
 
     /// Returns the last SQLite error message for this connection.
@@ -134,4 +175,52 @@ test "db: register/unregister clamp underflow" {
     db.unregisterStmt();
     db.unregisterStmt();
     try std.testing.expectEqual(@as(i32, 0), db.active_stmts);
+}
+
+test "db: transaction commit persists changes" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE t(
+        \\  id INTEGER PRIMARY KEY,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+
+    var tx = try db.beginTx(.deferred);
+    defer tx.deinit();
+    try db.exec("INSERT INTO t(name) VALUES('alice');");
+    try tx.commit();
+
+    var st = try @import("stmt.zig").Stmt.init(&db, "SELECT COUNT(*) FROM t;");
+    defer st.deinit();
+    try std.testing.expectEqual(@import("stmt.zig").StepResult.row, try st.step());
+    try std.testing.expectEqual(@as(i64, 1), st.colInt(0));
+}
+
+test "db: transaction deinit rolls back unfinished work" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE t(
+        \\  id INTEGER PRIMARY KEY,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+
+    {
+        var tx = try db.beginTx(.deferred);
+        defer tx.deinit();
+        try db.exec("INSERT INTO t(name) VALUES('alice');");
+        // no commit -> rollback via deinit
+    }
+
+    var st = try @import("stmt.zig").Stmt.init(&db, "SELECT COUNT(*) FROM t;");
+    defer st.deinit();
+    try std.testing.expectEqual(@import("stmt.zig").StepResult.row, try st.step());
+    try std.testing.expectEqual(@as(i64, 0), st.colInt(0));
 }

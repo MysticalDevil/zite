@@ -19,4 +19,5 @@ comptime {
     _ = @import("owned_row.zig");
     _ = @import("delete.zig");
     _ = @import("upsert.zig");
+    _ = @import("transaction.zig");
 }

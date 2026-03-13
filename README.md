@@ -65,6 +65,7 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | ORM upsert | `repo.upsert` | Returns `.inserted` or `.updated`. |
 | Query builder | `repo.query()` | Builder with `whereEq/whereRaw/orderBy/limit/offset`. |
 | Find by id | `repo.findByIdOwned` | `OwnedRow(T)` or `null`. |
+| Transactions | `repo.beginTx(.deferred)` | `commit()` or automatic rollback on `deinit()`. |
 | Schema | `zite.schema.createTableSqlFromMeta` | CREATE TABLE from `Meta`. |
 | Errors | `zite.errors.ZiteError` | Unified error set. |
 
@@ -177,6 +178,16 @@ const inserted = try repo.insertMany(&[_]User{
     .{ .id = 0, .name = n2, .age = null },
 });
 _ = inserted; // 2
+```
+
+## Transactions
+
+```zig
+var tx = try repo.beginTx(.deferred);
+defer tx.deinit(); // auto rollback if not committed
+
+_ = try repo.insert(.{ .id = 0, .name = n1, .age = 20 });
+try tx.commit();
 ```
 
 ## Owned Types
