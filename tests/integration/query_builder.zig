@@ -58,6 +58,43 @@ test "orm.query: whereEq/orderBy/limit/offset/whereRaw" {
     try std.testing.expectEqualStrings("carol", many[0].value.name.value);
 }
 
+test "orm.query: orderBy supports multi-column sort" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "b");
+    defer n1.deinit(a);
+    var n2 = try orm.types.OwnedText.fromConst(a, "a");
+    defer n2.deinit(a);
+    var n3 = try orm.types.OwnedText.fromConst(a, "c");
+    defer n3.deinit(a);
+
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 20) });
+    _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 20) });
+    _ = try repo.insert(.{ .id = 0, .name = n3, .age = @as(?i64, 10) });
+
+    var q = repo.query();
+    defer q.deinit();
+    try q.orderBy("age", .asc);
+    try q.orderBy("name", .asc);
+
+    const rows = try q.allOwned();
+    defer a.free(rows);
+    defer for (rows) |*row| row.deinit();
+
+    try std.testing.expectEqual(@as(usize, 3), rows.len);
+    try std.testing.expectEqualStrings("c", rows[0].value.name.value);
+    try std.testing.expectEqualStrings("a", rows[1].value.name.value);
+    try std.testing.expectEqualStrings("b", rows[2].value.name.value);
+}
+
 test "orm.query: iterateBorrowed and repo borrowed lookups are zero-copy" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
@@ -181,4 +218,62 @@ test "orm.query: whereRaw is atomic when param conversion fails" {
 
     try std.testing.expectEqual(where_len_before, q.where_buf.items.len);
     try std.testing.expectEqual(params_len_before, q.params.items.len);
+}
+
+test "orm.query: whereRaw then whereEq keeps placeholder indices aligned" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer n2.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
+    _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 40) });
+
+    var q = repo.query();
+    defer q.deinit();
+    try q.whereRaw("\"name\"=?1", .{"bob"});
+    try q.whereEq("age", @as(i64, 40)); // should bind as ?2
+
+    const one = (try q.firstOwned()).?;
+    var one_mut = one;
+    defer one_mut.deinit();
+    try std.testing.expectEqualStrings("bob", one_mut.value.name.value);
+    try std.testing.expectEqual(@as(i64, 40), one_mut.value.age.?);
+}
+
+test "orm.query: whereEq then whereRaw keeps placeholder indices aligned" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer n2.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
+    _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 40) });
+
+    var q = repo.query();
+    defer q.deinit();
+    try q.whereEq("age", @as(i64, 30)); // uses ?1
+    try q.whereRaw("\"name\"=?2", .{"alice"}); // raw follows existing parameter index
+
+    const one = (try q.firstOwned()).?;
+    var one_mut = one;
+    defer one_mut.deinit();
+    try std.testing.expectEqualStrings("alice", one_mut.value.name.value);
+    try std.testing.expectEqual(@as(i64, 30), one_mut.value.age.?);
 }

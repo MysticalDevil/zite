@@ -261,14 +261,17 @@ pub const Stmt = struct {
     /// Returns an owned copy of TEXT data (caller frees with allocator).
     pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
         try self.ensureOpen();
-        const p = raw.stmt.columnText(self.stmt, col);
-        if (p == null) {
+        if (try self.colIsNull(col)) {
             return null;
         }
 
         const n = raw.stmt.columnBytes(self.stmt, col);
         const len: usize = @intCast(n);
+        if (len == 0) {
+            return &.{};
+        }
 
+        const p = raw.stmt.columnText(self.stmt, col) orelse return &.{};
         const src: [*]const u8 = @ptrCast(p);
         const out = try a.alloc(u8, len);
         if (len != 0) {
@@ -298,14 +301,17 @@ pub const Stmt = struct {
     /// Returns an owned copy of BLOB data (caller frees with allocator).
     pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
         try self.ensureOpen();
-        const p = raw.stmt.columnBlob(self.stmt, col);
-        if (p == null) {
+        if (try self.colIsNull(col)) {
             return null;
         }
 
         const n = raw.stmt.columnBytes(self.stmt, col);
         const len: usize = @intCast(n);
+        if (len == 0) {
+            return &.{};
+        }
 
+        const p = raw.stmt.columnBlob(self.stmt, col) orelse return &.{};
         const src: [*]const u8 = @ptrCast(p);
         const out = try a.alloc(u8, len);
         if (len != 0) {

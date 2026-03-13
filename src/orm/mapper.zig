@@ -123,7 +123,7 @@ pub fn Rows(comptime T: type) type {
 }
 
 /// Iterator returning OwnedRow(T), which frees TEXT/BLOB on deinit.
-pub fn RowsOwned(comptime T: type) type {
+pub fn OwnedRows(comptime T: type) type {
     return struct {
         rows: Rows(T),
 
@@ -243,7 +243,10 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
 }
 
 /// Upserts a record by primary key.
-/// If a row with the same PK exists, updates it; otherwise inserts a new row.
+/// When PK is included in INSERT (`skip_primary_key_on_insert=false`), uses
+/// INSERT-first fallback to reduce race windows.
+/// When PK is omitted from INSERT (`skip_primary_key_on_insert=true`), falls
+/// back to exists+update semantics for compatibility.
 /// The caller is responsible for freeing any owned fields in `entity`.
 pub fn upsert(comptime T: type, db: *Db, entity: T) errors.ZiteError!UpsertResult {
     if (@typeInfo(T) != .@"struct") {
@@ -252,12 +255,27 @@ pub fn upsert(comptime T: type, db: *Db, entity: T) errors.ZiteError!UpsertResul
     const m = comptime meta.getMeta(T);
     const pk_value = pkFieldValue(T, entity, m);
 
-    if (try existsById(T, db, pk_value)) {
-        _ = try update(T, db, entity);
-        return .updated;
+    if (m.skip_primary_key_on_insert) {
+        if (try existsById(T, db, pk_value)) {
+            _ = try update(T, db, entity);
+            return .updated;
+        }
+
+        _ = try insert(T, db, entity);
+        return .inserted;
     }
 
-    _ = try insert(T, db, entity);
+    _ = insert(T, db, entity) catch |err| {
+        if (err != error.SqliteConstraint) {
+            return err;
+        }
+
+        if (try existsById(T, db, pk_value)) {
+            _ = try update(T, db, entity);
+            return .updated;
+        }
+        return err;
+    };
     return .inserted;
 }
 
@@ -711,8 +729,161 @@ test "mapper: deleteWhere propagates OutOfMemory from SQL building" {
     );
 }
 
+test "mapper: upsert keeps non-pk unique conflicts as SqliteConstraint" {
+    const Row = struct {
+        id: i64,
+        name: types.OwnedText,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = false,
+        };
+    };
+
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY,
+        \\  name TEXT NOT NULL UNIQUE
+        \\);
+    );
+
+    var n1 = try types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    const first = try upsert(Row, &db, .{ .id = 1, .name = n1 });
+    try std.testing.expectEqual(UpsertResult.inserted, first);
+
+    var n2 = try types.OwnedText.fromConst(a, "alice");
+    defer n2.deinit(a);
+    try std.testing.expectError(
+        error.SqliteConstraint,
+        upsert(Row, &db, .{ .id = 2, .name = n2 }),
+    );
+}
+
+test "mapper: upsert propagates OutOfMemory from existsById SQL building" {
+    const Row = struct {
+        id: i64,
+        name: types.OwnedText,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+        };
+    };
+
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+
+    var name = try types.OwnedText.fromConst(a, "alice");
+    defer name.deinit(a);
+
+    var failing_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    db.allocator = failing_state.allocator();
+
+    try std.testing.expectError(
+        error.OutOfMemory,
+        upsert(Row, &db, .{ .id = 1, .name = name }),
+    );
+}
+
+test "mapper: upsert propagates NoUpdatableFields in exists-first path" {
+    const Row = struct {
+        id: i64,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+        };
+    };
+
+    var db = try Db.open(std.testing.allocator, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT
+        \\);
+    );
+    try db.exec("INSERT INTO users(id) VALUES (1);");
+
+    try std.testing.expectError(
+        error.NoUpdatableFields,
+        upsert(Row, &db, .{ .id = 1 }),
+    );
+}
+
+test "mapper: upsert propagates NoInsertableFields in exists-first path" {
+    const Row = struct {
+        id: i64,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+        };
+    };
+
+    var db = try Db.open(std.testing.allocator, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT
+        \\);
+    );
+
+    try std.testing.expectError(
+        error.NoInsertableFields,
+        upsert(Row, &db, .{ .id = 1 }),
+    );
+}
+
+test "mapper: upsert propagates NoUpdatableFields in insert-first conflict path" {
+    const Row = struct {
+        id: i64,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = false,
+        };
+    };
+
+    var db = try Db.open(std.testing.allocator, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY
+        \\);
+    );
+    try db.exec("INSERT INTO users(id) VALUES (1);");
+
+    try std.testing.expectError(
+        error.NoUpdatableFields,
+        upsert(Row, &db, .{ .id = 1 }),
+    );
+}
+
 /// Executes a WHERE query and returns an iterator of OwnedRow(T) rows.
-pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!RowsOwned(T) {
+pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!OwnedRows(T) {
     const r = try findMany(T, P, db, allocator, where_clause, params);
     return .{ .rows = r };
 }

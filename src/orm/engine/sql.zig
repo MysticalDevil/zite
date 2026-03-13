@@ -126,6 +126,9 @@ pub fn buildDeleteWhereSql(comptime T: type, db: *Db, where_clause: []const u8) 
     }
     const m = comptime meta.getMeta(T);
     const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
+    if (trimmed.len == 0) {
+        return error.EmptyWhereClause;
+    }
 
     var buf: std.ArrayList(u8) = .empty;
     errdefer buf.deinit(db.allocator);
@@ -134,10 +137,8 @@ pub fn buildDeleteWhereSql(comptime T: type, db: *Db, where_clause: []const u8) 
 
     try b.lit("DELETE FROM ");
     try b.ident(m.table);
-    if (trimmed.len != 0) {
-        try b.lit(" WHERE ");
-        try b.lit(trimmed);
-    }
+    try b.lit(" WHERE ");
+    try b.lit(trimmed);
     try b.lit(";");
     return toOwnedSql(db, &buf);
 }
@@ -243,4 +244,20 @@ pub fn buildFindManySql(
 pub fn prepareOwnedSql(db: *Db, sql: []const u8) errors.ZiteError!Stmt {
     defer db.allocator.free(sql);
     return try Stmt.init(db, sql);
+}
+
+test "engine.sql: buildDeleteWhereSql rejects empty clause" {
+    const Row = struct {
+        id: i64,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+        };
+    };
+
+    var db = try Db.open(std.testing.allocator, ":memory:");
+    defer db.deinit();
+
+    try std.testing.expectError(error.EmptyWhereClause, buildDeleteWhereSql(Row, &db, " \t "));
 }

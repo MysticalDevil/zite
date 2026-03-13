@@ -194,6 +194,9 @@ try tx.commit();
 // try tx.rollback(); // explicit rollback is also supported
 ```
 
+For multi-connection write contention, prefer wrapping related writes (including
+`upsert`) in an explicit transaction to make behavior easier to reason about.
+
 ## Owned Types
 
 `OwnedText`/`OwnedBlob` carry owned buffers and must be freed. ORM mapping and
