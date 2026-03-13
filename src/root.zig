@@ -28,3 +28,5 @@ pub const schema = @import("orm/schema.zig");
 
 /// OwnedRow wrapper for ORM allocations.
 pub const OwnedRow = orm.OwnedRow;
+/// Owned rows iterator wrapper for ORM allocations.
+pub const OwnedRows = orm.OwnedRows;

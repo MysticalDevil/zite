@@ -10,6 +10,8 @@ const engine = @import("engine.zig");
 pub const UpsertResult = mapper.UpsertResult;
 pub const TxMode = Db.TxMode;
 pub const Tx = Db.Tx;
+pub const OwnedRow = mapper.OwnedRow;
+pub const OwnedRows = mapper.OwnedRows;
 
 pub const OrderDir = enum {
     asc,
@@ -96,19 +98,6 @@ const QueryParam = union(enum) {
     blob: []const u8,
 };
 
-pub fn OwnedRow(comptime T: type) type {
-    return struct {
-        allocator: std.mem.Allocator,
-        value: T,
-
-        const Self = @This();
-
-        pub fn deinit(self: *Self) void {
-            engine.row.freeOwnedRow(T, self.allocator, &self.value);
-        }
-    };
-}
-
 pub fn BorrowedOne(comptime T: type) type {
     return struct {
         rows: RowsBorrowed(T),
@@ -126,13 +115,6 @@ pub fn BorrowedOne(comptime T: type) type {
         pub fn deinit(self: *Self) void {
             self.rows.deinit();
         }
-    };
-}
-
-fn wrapOwnedRow(comptime T: type, allocator: std.mem.Allocator, v: T) OwnedRow(T) {
-    return .{
-        .allocator = allocator,
-        .value = v,
     };
 }
 
@@ -188,7 +170,10 @@ pub fn Repository(comptime T: type) type {
 
         pub fn findByIdOwned(self: *Self, id: anytype) errors.ZiteError!?OwnedRow(T) {
             if (try mapper.findById(T, self.db, self.owned_allocator, id)) |v| {
-                return wrapOwnedRow(T, self.owned_allocator, v);
+                return .{
+                    .allocator = self.owned_allocator,
+                    .value = v,
+                };
             }
             return null;
         }
@@ -196,6 +181,8 @@ pub fn Repository(comptime T: type) type {
         pub fn findByIdBorrowed(self: *Self, id: anytype) errors.ZiteError!?BorrowedOne(T) {
             const pk_field = comptime meta.getMeta(T).primary_key;
             var q = self.query();
+            // Safe: q.deinit() only releases query builder buffers.
+            // firstBorrowed() transfers a prepared statement into BorrowedOne.rows.
             defer q.deinit();
             try q.whereEq(pk_field, id);
             return q.firstBorrowed();
@@ -207,6 +194,7 @@ pub fn Repository(comptime T: type) type {
 
         pub fn findOneBorrowedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!?BorrowedOne(T) {
             var q = self.query();
+            // Safe: q.deinit() does not touch the statement owned by returned BorrowedOne.
             defer q.deinit();
             try q.whereRaw(where_clause, params);
             return q.firstBorrowed();
@@ -220,50 +208,12 @@ pub fn Repository(comptime T: type) type {
             return mapper.findManyWithOptions(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params, opts);
         }
 
-        pub fn findManyOwnedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!mapper.RowsOwned(T) {
+        pub fn findManyOwnedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!mapper.OwnedRows(T) {
             return mapper.findManyOwned(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
         }
 
         pub fn freeOwnedRow(self: *Self, value: *T) void {
             mapper.freeOwnedRow(T, self.owned_allocator, value);
-        }
-    };
-}
-
-pub fn RowsOwned(comptime T: type) type {
-    return struct {
-        st: Stmt,
-        allocator: std.mem.Allocator,
-        done: bool = false,
-
-        const Self = @This();
-
-        pub fn deinit(self: *Self) void {
-            if (!self.done) {
-                self.st.deinit();
-                self.done = true;
-            }
-        }
-
-        pub fn next(self: *Self) errors.ZiteError!?OwnedRow(T) {
-            if (self.done) {
-                return null;
-            }
-
-            errdefer {
-                self.st.deinit();
-                self.done = true;
-            }
-
-            const r = try self.st.step();
-            if (r == .done) {
-                self.st.deinit();
-                self.done = true;
-                return null;
-            }
-
-            const value = try engine.row.readStruct(T, &self.st, self.allocator);
-            return wrapOwnedRow(T, self.allocator, value);
         }
     };
 }
@@ -393,7 +343,9 @@ pub fn Query(comptime T: type) type {
         pub fn orderBy(self: *Self, comptime field: []const u8, dir: OrderDir) errors.ZiteError!void {
             const column = comptime columnForField(field);
 
-            self.order_buf.clearRetainingCapacity();
+            if (self.order_buf.items.len != 0) {
+                try self.order_buf.appendSlice(self.db.allocator, ", ");
+            }
             try self.order_buf.append(self.db.allocator, '"');
             try self.order_buf.appendSlice(self.db.allocator, column);
             try self.order_buf.appendSlice(self.db.allocator, "\" ");
@@ -420,6 +372,7 @@ pub fn Query(comptime T: type) type {
         pub fn firstBorrowed(self: *Self) errors.ZiteError!?BorrowedOne(T) {
             var rows = try self.iterateBorrowedWithLimit(1);
             if (try rows.next()) |row| {
+                // Move rows (and its prepared statement) into BorrowedOne.
                 return .{
                     .rows = rows,
                     .row_generation = row.row_generation,
@@ -428,7 +381,7 @@ pub fn Query(comptime T: type) type {
             return null;
         }
 
-        pub fn iterateOwned(self: *Self) errors.ZiteError!RowsOwned(T) {
+        pub fn iterateOwned(self: *Self) errors.ZiteError!OwnedRows(T) {
             return self.iterateOwnedWithLimit(self.limit);
         }
 
@@ -450,7 +403,7 @@ pub fn Query(comptime T: type) type {
             return try out.toOwnedSlice(self.owned_allocator);
         }
 
-        fn iterateOwnedWithLimit(self: *Self, limit_override: ?usize) errors.ZiteError!RowsOwned(T) {
+        fn iterateOwnedWithLimit(self: *Self, limit_override: ?usize) errors.ZiteError!OwnedRows(T) {
             const opts: engine.sql.FindManyOptions = .{
                 .order_by = if (self.order_buf.items.len == 0) null else self.order_buf.items,
                 .limit = if (limit_override) |n| n else self.limit,
@@ -466,9 +419,11 @@ pub fn Query(comptime T: type) type {
             }
 
             return .{
-                .st = st,
-                .allocator = self.owned_allocator,
-                .done = false,
+                .rows = .{
+                    .st = st,
+                    .allocator = self.owned_allocator,
+                    .done = false,
+                },
             };
         }
 
