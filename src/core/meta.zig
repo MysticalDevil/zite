@@ -14,6 +14,8 @@ pub const Meta = struct {
     rename: []const Rename = &.{},
     /// Unique constraints (each entry is a list of field names).
     unique: []const []const []const u8 = &.{},
+    /// Default ORDER BY clause used by findMany.
+    order_by: []const u8 = "",
 };
 
 /// Field rename mapping.
@@ -48,6 +50,7 @@ pub fn getMeta(comptime T: type) Meta {
     const skip: []const []const u8 = if (@hasField(MT, "skip")) m.skip else &.{};
     const rename: []const Rename = if (@hasField(MT, "rename")) m.rename else &.{};
     const unique: []const []const []const u8 = if (@hasField(MT, "unique")) m.unique else &.{};
+    const order_by: []const u8 = if (@hasField(MT, "order_by")) m.order_by else "";
 
     return .{
         .table = table,
@@ -56,6 +59,7 @@ pub fn getMeta(comptime T: type) Meta {
         .skip = skip,
         .rename = rename,
         .unique = unique,
+        .order_by = order_by,
     };
 }
 
@@ -147,6 +151,7 @@ test "meta: getMeta defaults and overrides" {
             .unique = &.{
                 &.{"name"},
             },
+            .order_by = "\"id\" DESC",
         };
     };
 
@@ -165,6 +170,7 @@ test "meta: getMeta defaults and overrides" {
     try std.testing.expectEqual(@as(usize, 1), mb.skip.len);
     try std.testing.expectEqual(@as(usize, 1), mb.rename.len);
     try std.testing.expectEqual(@as(usize, 1), mb.unique.len);
+    try std.testing.expectEqualStrings("\"id\" DESC", mb.order_by);
 }
 
 test "meta: columnName, pkColumnName, isSkipped" {

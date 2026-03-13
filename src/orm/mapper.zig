@@ -244,6 +244,65 @@ pub fn insert(comptime T: type, db: *Db, entity: T) errors.ZiteError!i64 {
     return db.lastInsertRowId();
 }
 
+/// Inserts many records and returns the number of inserted rows.
+/// Reuses one prepared statement for efficiency.
+/// The caller is responsible for freeing any owned fields in `entities`.
+pub fn insertMany(comptime T: type, db: *Db, entities: []const T) errors.ZiteError!usize {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct") @compileError("insertMany expects a struct type");
+    if (entities.len == 0) return 0;
+
+    const m = comptime meta.getMeta(T);
+    comptime {
+        if (meta.isSkipped(m.primary_key, m)) {
+            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
+        }
+    }
+    const ncols = comptime meta.insertableCount(T, m);
+    if (ncols == 0) return error.NoInsertableFields;
+
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(db.allocator);
+    var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
+    try b.reserve(sqlutil.estInsertLen(T, m));
+
+    try b.lit("INSERT INTO ");
+    try b.ident(m.table);
+    try b.lit(" (");
+    try b.insertColumnList(T, m);
+    try b.lit(") VALUES (");
+    try b.placeholders(ncols);
+    try b.lit(");");
+
+    const sql = try buf.toOwnedSlice(db.allocator);
+    defer db.allocator.free(sql);
+
+    var st = try Stmt.init(db, sql);
+    defer st.deinit();
+
+    const fields = ti.@"struct".fields;
+    for (entities, 0..) |entity, i| {
+        if (i != 0) {
+            try st.reset();
+        }
+
+        var bind_i: i32 = 1;
+        inline for (fields) |f| {
+            if (comptime meta.isSkipped(f.name, m)) continue;
+            const skip = comptime (m.skip_primary_key_on_insert and meta.isPk(f.name, m.primary_key));
+            if (skip) continue;
+
+            try st.bindOne(bind_i, @field(entity, f.name));
+            bind_i += 1;
+        }
+
+        const r = try st.step();
+        if (r != .done) return error.UnexpectedRowOnInsert;
+    }
+
+    return entities.len;
+}
+
 /// Updates a record by primary key; returns number of rows changed.
 /// The caller is responsible for freeing any owned fields in `entity`.
 pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
@@ -628,7 +687,8 @@ pub fn findManyWithOptions(
     defer buf.deinit(db.allocator);
     var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
     const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
-    const trimmed_order = if (opts.order_by) |v| std.mem.trim(u8, v, " \t\r\n") else "";
+    const default_order = std.mem.trim(u8, m.order_by, " \t\r\n");
+    const trimmed_order = if (opts.order_by) |v| std.mem.trim(u8, v, " \t\r\n") else default_order;
     const order_extra: usize = if (trimmed_order.len != 0) " ORDER BY ".len + trimmed_order.len else 0;
     const limit_extra: usize = if (opts.limit != null) " LIMIT ".len + 20 else 0;
     const offset_extra: usize = if (opts.offset != null)
