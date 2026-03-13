@@ -332,3 +332,32 @@ test "stmt: bindText/blob and colTextOwned/colBlobOwned on empty" {
     }
     try std.testing.expectEqual(StepResult.done, try st.step());
 }
+
+test "stmt: colTextOwned/colBlobOwned propagate OutOfMemory" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    var st = try Stmt.init(&db, "SELECT ?1, ?2;");
+    defer st.deinit();
+    try st.bindText(1, "abc");
+    try st.bindBlob(2, &[_]u8{ 1, 2, 3 });
+
+    try std.testing.expectEqual(StepResult.row, try st.step());
+
+    var fail_text_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    try std.testing.expectError(
+        error.OutOfMemory,
+        st.colTextOwned(fail_text_state.allocator(), 0),
+    );
+
+    var fail_blob_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    try std.testing.expectError(
+        error.OutOfMemory,
+        st.colBlobOwned(fail_blob_state.allocator(), 1),
+    );
+}

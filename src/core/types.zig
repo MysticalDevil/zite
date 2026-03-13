@@ -82,3 +82,21 @@ test "types: OwnedBlob empty deinit is safe" {
     b.deinit(a);
     try std.testing.expectEqual(@as(usize, 0), b.value.len);
 }
+
+test "types: OwnedText fromConst propagates OutOfMemory" {
+    var failing_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    const failing = failing_state.allocator();
+
+    try std.testing.expectError(error.OutOfMemory, OwnedText.fromConst(failing, "oom"));
+}
+
+test "types: OwnedBlob fromConst propagates OutOfMemory" {
+    var failing_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    const failing = failing_state.allocator();
+
+    try std.testing.expectError(error.OutOfMemory, OwnedBlob.fromConst(failing, &[_]u8{ 1, 2, 3 }));
+}

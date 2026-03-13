@@ -649,6 +649,82 @@ test "mapper: Rows deinit finalizes early" {
     rows.deinit();
 }
 
+test "mapper: insert propagates OutOfMemory from SQL building" {
+    const Row = struct {
+        id: i64,
+        name: types.OwnedText,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+        };
+    };
+
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+
+    var name = try types.OwnedText.fromConst(a, "alice");
+    defer name.deinit(a);
+
+    var failing_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    db.allocator = failing_state.allocator();
+
+    try std.testing.expectError(error.OutOfMemory, insert(Row, &db, .{
+        .id = 0,
+        .name = name,
+    }));
+}
+
+test "mapper: findMany propagates OutOfMemory from SQL building" {
+    const Row = struct {
+        id: i64,
+        name: types.OwnedText,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+        };
+    };
+
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+
+    var name = try types.OwnedText.fromConst(a, "alice");
+    defer name.deinit(a);
+    _ = try insert(Row, &db, .{ .id = 0, .name = name });
+
+    var failing_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    db.allocator = failing_state.allocator();
+
+    const P = @TypeOf(.{@as(i64, 0)});
+    try std.testing.expectError(
+        error.OutOfMemory,
+        findMany(Row, P, &db, a, "\"id\">?1", .{@as(i64, 0)}),
+    );
+}
+
 /// Executes a WHERE query and returns an iterator of OwnedRow(T) rows.
 pub fn findManyOwned(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!RowsOwned(T) {
     const r = try findMany(T, P, db, allocator, where_clause, params);
