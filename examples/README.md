@@ -3,6 +3,9 @@
 Each example is a standalone Zig file that imports the module by name. Run them
 with a module mapping and link sqlite3.
 
+> [!IMPORTANT]
+> Examples target Zig `0.16-dev` (`master`) and are not compatible with Zig `0.15.x`.
+
 ## Run Commands
 
 **orm_basic.zig**  

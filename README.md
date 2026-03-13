@@ -2,6 +2,9 @@
 
 Typed SQLite access for Zig with a small ORM layer and explicit ownership rules.
 
+> [!IMPORTANT]
+> This project targets Zig `0.16-dev` (`master`) on `main` and is not compatible with Zig `0.15.x`.
+
 ## Highlights
 
 - Strong, explicit memory ownership for text/blob data (`OwnedText`, `OwnedBlob`).
@@ -111,8 +114,9 @@ pub fn main() !void {
     _ = try zite.mapper.insert(User, &db, user);
 
     if (try zite.mapper.findByIdOwned(User, &db, a, 1)) |row| {
-        defer row.deinit();
-        std.debug.print("name={s}\n", .{row.value.name.value});
+        var owned = row;
+        defer owned.deinit();
+        std.debug.print("name={s}\n", .{owned.value.name.value});
     }
 }
 ```
@@ -148,8 +152,8 @@ pub const Meta = .{
 `bindOne` only accept these types for text/blob fields.
 
 ```zig
-var name = try zite.types.OwnedText.fromConst(gpa, "Alice");
-defer gpa.free(name.value);
+var name = try zite.types.OwnedText.fromConst(a, "Alice");
+defer a.free(name.value);
 ```
 
 ## Manual SQL (Stmt API)
@@ -159,8 +163,8 @@ var st = try zite.Stmt.init(&db, "SELECT body FROM notes WHERE id=?1;");
 defer st.deinit();
 try st.bindInt(1, 1);
 if (try st.step() == .row) {
-    if (try st.colTextOwned(gpa, 0)) |body| {
-        defer gpa.free(body);
+    if (try st.colTextOwned(a, 0)) |body| {
+        defer a.free(body);
         std.debug.print("{s}\n", .{body});
     }
 }

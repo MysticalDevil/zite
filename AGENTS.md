@@ -53,4 +53,7 @@
 - `examples/orm_meta_options.zig` shows `Meta` options (rename/skip/unique).
 - `examples/stmt_bind_all.zig` shows `bindAll` with typed params.
 - `examples/stmt_basic.zig` shows direct statement usage.
+- `examples/process_init_full.zig` shows `main(init: std.process.Init)` usage.
+- `examples/process_init_minimal.zig` shows `main(init: std.process.Init.Minimal)` usage.
+- `examples/process_init_env.zig` shows reading env via `init.environ_map`.
 - `examples/README.md` documents how to run the examples.
