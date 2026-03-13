@@ -11,8 +11,10 @@ comptime {
     _ = @import("find_one.zig");
     _ = @import("float_epoch_millis.zig");
     _ = @import("find_many.zig");
+    _ = @import("find_many_options.zig");
     _ = @import("expected_errors.zig");
     _ = @import("errmsg.zig");
     _ = @import("owned_row.zig");
     _ = @import("delete.zig");
+    _ = @import("upsert.zig");
 }
