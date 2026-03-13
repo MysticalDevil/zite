@@ -25,6 +25,26 @@ fn initThreadedIo() std.Io.Threaded {
     return .init(std.testing.allocator, .{});
 }
 
+fn initFileDb(comptime T: type, file_name: []const u8) !struct {
+    tmp: std.testing.TmpDir,
+    db_path: []u8,
+} {
+    var tmp = std.testing.tmpDir(.{});
+    errdefer tmp.cleanup();
+
+    const db_path = try makeDbPath(std.testing.allocator, &tmp, file_name);
+    errdefer std.testing.allocator.free(db_path);
+
+    var db = try zite.Db.open(std.testing.allocator, db_path);
+    defer db.deinit();
+    try helpers.createTableFromMeta(std.testing.allocator, &db, T);
+
+    return .{
+        .tmp = tmp,
+        .db_path = db_path,
+    };
+}
+
 test "async_pool: insert and findByIdOwned" {
     var io_instance = initThreadedIo();
     defer io_instance.deinit();
@@ -179,4 +199,170 @@ test "async_pool: findOne returns owned row value and caller frees it" {
     defer zite.AsyncPool.freeOwnedRow(User, std.testing.allocator, &user);
     try std.testing.expectEqualStrings("carol", user.name.value);
     try std.testing.expectEqual(@as(i64, 50), user.age.?);
+}
+
+test "async_pool: update persists changes" {
+    var io_instance = initThreadedIo();
+    defer io_instance.deinit();
+    const io = io_instance.io();
+
+    var fixture = try initFileDb(User, "async-update.sqlite");
+    defer fixture.tmp.cleanup();
+    defer std.testing.allocator.free(fixture.db_path);
+
+    {
+        var db = try zite.Db.open(std.testing.allocator, fixture.db_path);
+        defer db.deinit();
+        var repo = zite.orm.repository(User, &db, std.testing.allocator);
+        var name = try zite.types.OwnedText.fromConst(std.testing.allocator, "alice");
+        defer name.deinit(std.testing.allocator);
+        _ = try repo.insert(.{ .id = 1, .name = name, .age = 20 });
+    }
+
+    var pool = try zite.AsyncPool.init(std.testing.allocator, fixture.db_path, .{});
+    defer pool.deinit();
+
+    var updated_name = try zite.types.OwnedText.fromConst(std.testing.allocator, "alice-updated");
+    defer updated_name.deinit(std.testing.allocator);
+    const changed = try pool.update(io, User, .{
+        .id = 1,
+        .name = updated_name,
+        .age = 99,
+    });
+    try std.testing.expectEqual(@as(i32, 1), changed);
+
+    const row_opt = try pool.findByIdOwned(io, User, std.testing.allocator, @as(i64, 1));
+    try std.testing.expect(row_opt != null);
+    var row = row_opt.?;
+    defer row.deinit();
+    try std.testing.expectEqualStrings("alice-updated", row.value.name.value);
+    try std.testing.expectEqual(@as(i64, 99), row.value.age.?);
+}
+
+test "async_pool: deleteById removes row" {
+    var io_instance = initThreadedIo();
+    defer io_instance.deinit();
+    const io = io_instance.io();
+
+    var fixture = try initFileDb(User, "async-delete.sqlite");
+    defer fixture.tmp.cleanup();
+    defer std.testing.allocator.free(fixture.db_path);
+
+    {
+        var db = try zite.Db.open(std.testing.allocator, fixture.db_path);
+        defer db.deinit();
+        var repo = zite.orm.repository(User, &db, std.testing.allocator);
+        var name = try zite.types.OwnedText.fromConst(std.testing.allocator, "bob");
+        defer name.deinit(std.testing.allocator);
+        _ = try repo.insert(.{ .id = 1, .name = name, .age = 40 });
+    }
+
+    var pool = try zite.AsyncPool.init(std.testing.allocator, fixture.db_path, .{});
+    defer pool.deinit();
+
+    const changed = try pool.deleteById(io, User, @as(i64, 1));
+    try std.testing.expectEqual(@as(i32, 1), changed);
+    try std.testing.expect((try pool.findByIdOwned(io, User, std.testing.allocator, @as(i64, 1))) == null);
+}
+
+test "async_pool: upsert inserts then updates" {
+    var io_instance = initThreadedIo();
+    defer io_instance.deinit();
+    const io = io_instance.io();
+
+    var fixture = try initFileDb(User, "async-upsert.sqlite");
+    defer fixture.tmp.cleanup();
+    defer std.testing.allocator.free(fixture.db_path);
+
+    var pool = try zite.AsyncPool.init(std.testing.allocator, fixture.db_path, .{});
+    defer pool.deinit();
+
+    var name1 = try zite.types.OwnedText.fromConst(std.testing.allocator, "alice");
+    defer name1.deinit(std.testing.allocator);
+    const first = try pool.upsert(io, User, .{
+        .id = 1,
+        .name = name1,
+        .age = 20,
+    });
+    try std.testing.expectEqual(zite.orm.UpsertResult.inserted, first);
+
+    var name2 = try zite.types.OwnedText.fromConst(std.testing.allocator, "alice-updated");
+    defer name2.deinit(std.testing.allocator);
+    const second = try pool.upsert(io, User, .{
+        .id = 1,
+        .name = name2,
+        .age = 21,
+    });
+    try std.testing.expectEqual(zite.orm.UpsertResult.updated, second);
+
+    const row_opt = try pool.findByIdOwned(io, User, std.testing.allocator, @as(i64, 1));
+    try std.testing.expect(row_opt != null);
+    var row = row_opt.?;
+    defer row.deinit();
+    try std.testing.expectEqualStrings("alice-updated", row.value.name.value);
+    try std.testing.expectEqual(@as(i64, 21), row.value.age.?);
+}
+
+test "async_pool: insert propagates SqliteConstraint" {
+    var io_instance = initThreadedIo();
+    defer io_instance.deinit();
+    const io = io_instance.io();
+
+    var fixture = try initFileDb(User, "async-constraint.sqlite");
+    defer fixture.tmp.cleanup();
+    defer std.testing.allocator.free(fixture.db_path);
+
+    {
+        var db = try zite.Db.open(std.testing.allocator, fixture.db_path);
+        defer db.deinit();
+        try db.exec("DROP TABLE users;");
+        try db.exec(
+            "CREATE TABLE users (" ++
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " ++
+                "name TEXT NOT NULL UNIQUE, " ++
+                "age INTEGER" ++
+                ");",
+        );
+    }
+
+    var pool = try zite.AsyncPool.init(std.testing.allocator, fixture.db_path, .{});
+    defer pool.deinit();
+
+    var name1 = try zite.types.OwnedText.fromConst(std.testing.allocator, "dup");
+    defer name1.deinit(std.testing.allocator);
+    _ = try pool.insert(io, User, .{
+        .id = 0,
+        .name = name1,
+        .age = null,
+    });
+
+    var name2 = try zite.types.OwnedText.fromConst(std.testing.allocator, "dup");
+    defer name2.deinit(std.testing.allocator);
+    try std.testing.expectError(
+        error.SqliteConstraint,
+        pool.insert(io, User, .{
+            .id = 0,
+            .name = name2,
+            .age = null,
+        }),
+    );
+}
+
+test "async_pool: missing rows return null" {
+    var io_instance = initThreadedIo();
+    defer io_instance.deinit();
+    const io = io_instance.io();
+
+    var fixture = try initFileDb(User, "async-null.sqlite");
+    defer fixture.tmp.cleanup();
+    defer std.testing.allocator.free(fixture.db_path);
+
+    var pool = try zite.AsyncPool.init(std.testing.allocator, fixture.db_path, .{});
+    defer pool.deinit();
+
+    try std.testing.expect((try pool.findByIdOwned(io, User, std.testing.allocator, @as(i64, 999))) == null);
+
+    var nobody = try zite.types.OwnedText.fromConst(std.testing.allocator, "nobody");
+    defer nobody.deinit(std.testing.allocator);
+    try std.testing.expect((try pool.findOne(io, User, std.testing.allocator, "\"name\"=?1", .{nobody})) == null);
 }

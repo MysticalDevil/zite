@@ -10,11 +10,13 @@ Zite has a layered architecture:
 - `src/raw/`: direct SQLite FFI bindings.
 - `src/db/`: safe connection/statement wrappers (`Db`, `Stmt`, `Tx`).
 - `src/core/`: shared types, metadata, SQL string helpers, unified errors.
+- `src/async_pool.zig`: experimental `std.Io`-based task execution layer.
 - `src/orm/`: typed repository/query APIs.
 - `src/orm/engine/`: internal SQL assembly, bind/step, row decoding.
 
 The public API is intentionally small (`Db`, `Stmt`, `TxMode`, `Tx`, `orm`,
-`schema`, `types`, `errors`) and the engine internals stay hidden behind `orm`.
+`schema`, `types`, `errors`) with `AsyncPool` kept explicitly experimental; the
+engine internals stay hidden behind `orm`.
 
 ## Detailed ASCII Diagram
 
@@ -22,6 +24,7 @@ The public API is intentionally small (`Db`, `Stmt`, `TxMode`, `Tx`, `orm`,
                                      Application Code
         +--------------------------------------------------------------------------------+
         |  zite.Db / zite.Stmt / zite.TxMode / zite.Tx / zite.orm / zite.schema / types |
+        |  zite.AsyncPool (experimental)                                                   |
         +-----------------------------------------------+--------------------------------+
                                                         |
                                                         v
@@ -30,17 +33,17 @@ The public API is intentionally small (`Db`, `Stmt`, `TxMode`, `Tx`, `orm`,
                                    | public API re-exports + module wiring   |
                                    +--------------------+--------------------+
                                                         |
-                    +-----------------------------------+-----------------------------------+
-                    |                                                                       |
-                    v                                                                       v
-      +-------------+-------------+                                          +--------------+--------------+
-      |       src/db/*            |                                          |        src/orm/*            |
-      | Db / Stmt / Tx wrappers   |                                          | repository + query builder  |
-      | lifecycle + error mapping |                                          | typed CRUD + borrowed/owned |
-      +-------------+-------------+                                          +--------------+--------------+
-                    |                                                                       |
-                    | uses                                                                  | delegates internals
-                    v                                                                       v
+                    +------------------------+--------------------------+-------------------+
+                    |                        |                          |                   |
+                    v                        v                          v                   v
+      +-------------+-------------+  +------+-------+      +-----------+-----------+  +----+-----------------+
+      |     src/async_pool.zig    |  |   src/db/*   |      |      src/orm/*        |  |   src/root.zig      |
+      | std.Io.concurrent runner  |  | Db / Stmt /  |      | repository + query    |  | public re-exports    |
+      | one-task-one-connection   |  | Tx wrappers  |      | builder               |  | + module wiring      |
+      +-------------+-------------+  +------+-------+      +-----------+-----------+  +----------------------+
+                    |                        |                          |
+                    | opens per task         | uses                     | delegates internals
+                    |                        v                          v
       +-------------+-------------+                                          +--------------+--------------+
       |      src/raw/*            |<-----------------------------------------+   src/orm/engine/*          |
       | sqlite3_* FFI calls       |   prepares/steps/binds through Stmt      | sql + exec + row decoding   |
@@ -104,6 +107,17 @@ repo.beginTx(mode)
   -> returns db.Tx
   -> tx.commit() / tx.rollback()
   -> tx.deinit(): auto rollback if unfinished
+
+Execution path: AsyncPool findByIdOwned
+---------------------------------------
+pool.findByIdOwned(io, T, allocator, id)
+  -> std.Io.concurrent(...)
+  -> async_pool.withConnection
+  -> db.Db.open(file_path)
+  -> orm.repository(T, &db, allocator)
+  -> repo.findByIdOwned(id)
+  -> result materialized before await returns
+  -> db.deinit()
 ```
 
 ## External Dependencies
@@ -119,6 +133,7 @@ repo.beginTx(mode)
 - Statement operations after `deinit()`/`finalize()` return `error.StatementFinalized`.
 - Destructive delete-with-where APIs reject empty where clauses (`error.EmptyWhereClause`).
 - `findOne`/`findById` guard cardinality and return `error.UnexpectedExtraRows` if violated.
+- `AsyncPool` never returns borrowed row/view state; async boundaries are owned-only.
 
 ## Why This Shape
 

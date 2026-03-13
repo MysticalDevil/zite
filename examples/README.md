@@ -49,6 +49,7 @@ Experimental `AsyncPool` usage with `main(init: std.process.Init)` and `init.io`
 ```sh
 zig run --dep zite -Mroot=examples/async_pool_basic.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
+This example creates `async_pool_basic.sqlite` in the current working directory.
 
 **process_init_full.zig**  
 `main(init: std.process.Init)` with `init.gpa` and `--name=...`.

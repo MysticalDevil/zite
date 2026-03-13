@@ -5,6 +5,7 @@
 - `src/raw/` contains low-level sqlite3 bindings.
 - `src/db/` contains the DB and statement wrappers.
 - `src/core/` contains shared types, meta, and SQL utilities.
+- `src/async_pool.zig` contains the experimental `std.Io`-based async execution layer.
 - `src/orm/` contains ORM repository/query and schema helpers.
 - `src/orm/engine.zig` is the internal entrypoint for ORM engine helpers.
 - `src/orm/engine/` contains internal ORM execution helpers (SQL build/read/exec).
@@ -13,6 +14,7 @@
 
 ## API Stability & Boundaries
 - Stable APIs: `Db`, `TxMode`, `Tx`, `Stmt`, `orm`, `schema`, `types`, `errors`.
+- Experimental API: `AsyncPool` / `async_pool`.
 - Advanced APIs: `raw`, `sqlutil`, `meta` are exposed for power users and may change.
 - Internal APIs: `src/orm/engine.zig` and `src/orm/engine/*` are implementation details and not part of the public API contract.
 
@@ -61,4 +63,6 @@
 - `examples/process_init_full.zig` shows `main(init: std.process.Init)` usage.
 - `examples/process_init_minimal.zig` shows `main(init: std.process.Init.Minimal)` usage.
 - `examples/process_init_env.zig` shows reading env via `init.environ_map`.
+- `examples/async_pool_basic.zig` shows experimental `AsyncPool` usage with `init.io`.
 - `examples/README.md` documents how to run the examples.
+- `scripts/generate_test_db.sh` creates a small file-backed SQLite database for manual testing.

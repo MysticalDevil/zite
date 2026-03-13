@@ -218,6 +218,8 @@ Important constraints:
 - Each task opens its own `Db`.
 - Borrowed results are not allowed across the async boundary.
 - `AsyncPool.findOne` returns an owned value; free it with `zite.AsyncPool.freeOwnedRow`.
+- SQLite still behaves like SQLite: a single file-backed database supports many
+  readers, but write concurrency is still limited by database locking.
 
 ```zig
 pub fn main(init: std.process.Init) !void {
@@ -278,6 +280,8 @@ Notable behavior-specific errors:
 
 - `zig build test` runs unit tests.
 - `zig build itest` runs integration tests.
+- `tests/integration/async_pool.zig` covers `insert`, `update`, `deleteById`,
+  `upsert`, concurrent reads, empty-result paths, and representative error propagation.
 
 ## Zig Version
 
@@ -294,6 +298,7 @@ Notable behavior-specific errors:
 - `examples/process_init_full.zig` (`main(init: std.process.Init)`)
 - `examples/process_init_minimal.zig` (`main(init: std.process.Init.Minimal)`)
 - `examples/process_init_env.zig` (`init.environ_map`)
+- `examples/async_pool_basic.zig` (`AsyncPool` with `init.io`)
 
 ### Run Examples
 
@@ -305,6 +310,14 @@ zig run --dep zite -Mroot=examples/orm_basic.zig -Mzite=src/root.zig -lc -lsqlit
 ```
 
 See `examples/README.md` for more commands.
+
+## Test Database Script
+
+Generate a small file-backed SQLite database for manual testing:
+
+```sh
+./scripts/generate_test_db.sh /tmp/zite-test.sqlite
+```
 
 ## Architecture
 
@@ -318,4 +331,5 @@ See `examples/README.md` for more commands.
 - `src/orm/` repository/query ORM and schema.
 - `src/orm/engine.zig` internal engine namespace entrypoint.
 - `src/orm/engine/` internal ORM engine (SQL assembly, row decoding, exec helpers).
+- `scripts/generate_test_db.sh` generates a small file-backed SQLite database for manual testing.
 - `tests/` integration tests.

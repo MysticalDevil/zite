@@ -194,7 +194,7 @@ fn isAsyncResultAllowed(comptime T: type) bool {
         .array => |a| return isAsyncResultAllowed(a.child),
         .vector => |v| return isAsyncResultAllowed(v.child),
         .@"struct" => |s| {
-            if (forbiddenAsyncType(T)) {
+            if (forbiddenAsyncStructType(T)) {
                 return false;
             }
             inline for (s.fields) |f| {
@@ -210,18 +210,34 @@ fn isAsyncResultAllowed(comptime T: type) bool {
             }
             return true;
         },
-        else => return !forbiddenAsyncType(T),
+        else => return !forbiddenLeafType(T),
     }
 }
 
-fn forbiddenAsyncType(comptime T: type) bool {
+fn forbiddenAsyncStructType(comptime T: type) bool {
+    return hasStructField(T, "owner") and hasStructField(T, "row_generation") or
+        hasStructField(T, "rows") and hasStructField(T, "row_generation") or
+        hasStructField(T, "st") and hasStructField(T, "done") and hasStructField(T, "cursor_generation");
+}
+
+fn forbiddenLeafType(comptime T: type) bool {
     if (T == Db or T == Stmt) {
         return true;
     }
-    const name = @typeName(T);
-    return std.mem.indexOf(u8, name, "BorrowedRow(") != null or
-        std.mem.indexOf(u8, name, "BorrowedOne(") != null or
-        std.mem.indexOf(u8, name, "RowsBorrowed(") != null;
+    return false;
+}
+
+fn hasStructField(comptime T: type, comptime field_name: []const u8) bool {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct") {
+        return false;
+    }
+    inline for (ti.@"struct".fields) |f| {
+        if (comptime std.mem.eql(u8, f.name, field_name)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 const GuardRow = struct {
