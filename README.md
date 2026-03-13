@@ -60,9 +60,11 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | Statements | `zite.Stmt.init` / `st.deinit` | Prepared statement wrapper. |
 | ORM insert | `zite.mapper.insert` | Returns last insert rowid. |
 | ORM update | `zite.mapper.update` | Returns rows changed. |
+| ORM upsert | `zite.mapper.upsert` | Returns `.inserted` or `.updated`. |
 | Find by id | `zite.mapper.findByIdOwned` | `OwnedRow(T)` or `null`. |
 | Find one | `zite.mapper.findOne` | WHERE + params, `T` or `null`. |
 | ORM find many | `zite.mapper.findMany` | Iterates rows with `Rows(T)`. |
+| ORM find many opts | `zite.mapper.findManyWithOptions` | Adds `order_by` / `limit` / `offset`. |
 | Schema | `zite.schema.createTableSqlFromMeta` | CREATE TABLE from `Meta`. |
 | Errors | `zite.errors.ZiteError` | Unified error set. |
 

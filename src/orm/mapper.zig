@@ -7,6 +7,19 @@ const meta = @import("../core/meta.zig");
 const sqlutil = @import("../core/sqlutil.zig");
 const errors = @import("../core/errors.zig");
 
+/// Result tag returned by upsert.
+pub const UpsertResult = enum {
+    inserted,
+    updated,
+};
+
+/// Optional clauses for findMany queries.
+pub const FindManyOptions = struct {
+    order_by: ?[]const u8 = null,
+    limit: ?usize = null,
+    offset: ?usize = null,
+};
+
 fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("pkFieldType expects a struct type");
@@ -15,6 +28,50 @@ fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
         if (comptime meta.isPk(f.name, m.primary_key)) return f.type;
     }
     @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " + m.primary_key);
+}
+
+fn pkFieldValue(comptime T: type, entity: T, comptime m: meta.Meta) pkFieldType(T, m) {
+    const ti = @typeInfo(T);
+    if (ti != .@"struct") @compileError("pkFieldValue expects a struct type");
+
+    inline for (ti.@"struct".fields) |f| {
+        if (comptime meta.isPk(f.name, m.primary_key)) {
+            return @field(entity, f.name);
+        }
+    }
+    @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " + m.primary_key);
+}
+
+fn existsById(comptime T: type, db: *Db, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!bool {
+    if (@typeInfo(T) != .@"struct") @compileError("existsById expects a struct type");
+
+    const m = comptime meta.getMeta(T);
+    comptime {
+        if (meta.isSkipped(m.primary_key, m)) {
+            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
+        }
+    }
+
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(db.allocator);
+    var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
+    try b.reserve("SELECT 1 FROM ".len + m.table.len + " WHERE ".len + m.primary_key.len + "=?1 LIMIT 1;".len);
+
+    try b.lit("SELECT 1 FROM ");
+    try b.ident(m.table);
+    try b.lit(" WHERE ");
+    try b.ident(meta.pkColumnName(m));
+    try b.lit("=?1 LIMIT 1;");
+
+    const sql = try buf.toOwnedSlice(db.allocator);
+    defer db.allocator.free(sql);
+
+    var st = try Stmt.init(db, sql);
+    defer st.deinit();
+    try st.bindOne(1, id);
+
+    const r = try st.step();
+    return r == .row;
 }
 
 fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: i32) errors.ZiteError!FieldT {
@@ -252,6 +309,23 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     if (r != .done) return error.UnexpectedRowOnUpdate;
 
     return db.changes();
+}
+
+/// Upserts a record by primary key.
+/// If a row with the same PK exists, updates it; otherwise inserts a new row.
+/// The caller is responsible for freeing any owned fields in `entity`.
+pub fn upsert(comptime T: type, db: *Db, entity: T) errors.ZiteError!UpsertResult {
+    if (@typeInfo(T) != .@"struct") @compileError("upsert expects a struct type");
+    const m = comptime meta.getMeta(T);
+    const pk_value = pkFieldValue(T, entity, m);
+
+    if (try existsById(T, db, pk_value)) {
+        _ = try update(T, db, entity);
+        return .updated;
+    }
+
+    _ = try insert(T, db, entity);
+    return .inserted;
 }
 
 /// Deletes a record by primary key; returns number of rows changed.
@@ -523,6 +597,21 @@ fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: any
 /// Executes a WHERE query and returns an iterator over rows.
 /// Rows must be freed with `freeOwnedRow` when they contain owned fields.
 pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.Allocator, where_clause: []const u8, params: P) errors.ZiteError!Rows(T) {
+    return findManyWithOptions(T, P, db, allocator, where_clause, params, .{});
+}
+
+/// Executes a WHERE query and returns an iterator over rows with optional
+/// ORDER BY / LIMIT / OFFSET clauses.
+/// Rows must be freed with `freeOwnedRow` when they contain owned fields.
+pub fn findManyWithOptions(
+    comptime T: type,
+    comptime P: type,
+    db: *Db,
+    allocator: std.mem.Allocator,
+    where_clause: []const u8,
+    params: P,
+    opts: FindManyOptions,
+) errors.ZiteError!Rows(T) {
     const ti = @typeInfo(T);
     if (ti != .@"struct")
         @compileError("findMany expects a struct type");
@@ -539,7 +628,14 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
     defer buf.deinit(db.allocator);
     var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
     const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
-    try b.reserve(sqlutil.estSelectLen(T, m, trimmed.len, false));
+    const trimmed_order = if (opts.order_by) |v| std.mem.trim(u8, v, " \t\r\n") else "";
+    const order_extra: usize = if (trimmed_order.len != 0) " ORDER BY ".len + trimmed_order.len else 0;
+    const limit_extra: usize = if (opts.limit != null) " LIMIT ".len + 20 else 0;
+    const offset_extra: usize = if (opts.offset != null)
+        if (opts.limit != null) " OFFSET ".len + 20 else " LIMIT -1 OFFSET ".len + 20
+    else
+        0;
+    try b.reserve(sqlutil.estSelectLen(T, m, trimmed.len, false) + order_extra + limit_extra + offset_extra);
 
     try b.lit("SELECT ");
 
@@ -558,6 +654,24 @@ pub fn findMany(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.
     if (trimmed.len != 0) {
         try b.lit(" WHERE ");
         try b.lit(trimmed);
+    }
+
+    if (trimmed_order.len != 0) {
+        try b.lit(" ORDER BY ");
+        try b.lit(trimmed_order);
+    }
+
+    if (opts.limit) |limit| {
+        try b.lit(" LIMIT ");
+        try b.print("{}", .{limit});
+    }
+
+    if (opts.offset) |offset| {
+        if (opts.limit == null) {
+            try b.lit(" LIMIT -1");
+        }
+        try b.lit(" OFFSET ");
+        try b.print("{}", .{offset});
     }
 
     try b.lit(";");
