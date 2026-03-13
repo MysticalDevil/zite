@@ -23,6 +23,7 @@ test "mapper.findManyWithOptions: supports meta default order_by and explicit ov
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -33,46 +34,36 @@ test "mapper.findManyWithOptions: supports meta default order_by and explicit ov
     var n4 = try orm.types.OwnedText.fromConst(a, "dave");
     defer n4.deinit(a);
 
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = n1 });
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = n2 });
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = n3 });
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = n4 });
-
-    const P = @TypeOf(.{});
+    _ = try repo.insert(.{ .id = 0, .name = n1 });
+    _ = try repo.insert(.{ .id = 0, .name = n2 });
+    _ = try repo.insert(.{ .id = 0, .name = n3 });
+    _ = try repo.insert(.{ .id = 0, .name = n4 });
 
     // Meta.default order_by should apply when opts.order_by is null.
-    var rows_default = try orm.mapper.findMany(User, P, &db, a, "", .{});
+    var rows_default = try repo.findManyRaw("", .{});
     defer rows_default.deinit();
 
     if (try rows_default.next()) |u| {
         var tmp = u;
-        defer orm.mapper.freeOwnedRow(User, a, &tmp);
+        defer repo.freeOwnedRow(&tmp);
         try std.testing.expectEqual(@as(i64, 4), tmp.id);
     } else {
         return error.TestExpectedEqual;
     }
 
     // Explicit options override Meta.order_by.
-    var rows = try orm.mapper.findManyWithOptions(
-        User,
-        P,
-        &db,
-        a,
-        "",
-        .{},
-        .{
-            .order_by = "\"id\" ASC",
-            .limit = 2,
-            .offset = 1,
-        },
-    );
+    var rows = try repo.findManyRawWithOptions("", .{}, .{
+        .order_by = "\"id\" ASC",
+        .limit = 2,
+        .offset = 1,
+    });
     defer rows.deinit();
 
     var ids = std.ArrayList(i64).empty;
     defer ids.deinit(a);
     while (try rows.next()) |u| {
         var tmp = u;
-        defer orm.mapper.freeOwnedRow(User, a, &tmp);
+        defer repo.freeOwnedRow(&tmp);
         try ids.append(a, tmp.id);
     }
 

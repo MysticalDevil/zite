@@ -24,6 +24,7 @@ test "mapper.findMany: ioterate rows and free owned fields" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
 
     var name1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
@@ -31,19 +32,18 @@ test "mapper.findMany: ioterate rows and free owned fields" {
     defer name2.deinit(a);
     var name3 = try orm.types.OwnedText.fromConst(a, "carol");
     defer name3.deinit(a);
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name1, .age = null, .created_at = 1 });
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name2, .age = 20, .created_at = 2 });
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name3, .age = 30, .created_at = 3 });
+    _ = try repo.insert(.{ .id = 0, .name = name1, .age = null, .created_at = 1 });
+    _ = try repo.insert(.{ .id = 0, .name = name2, .age = 20, .created_at = 2 });
+    _ = try repo.insert(.{ .id = 0, .name = name3, .age = 30, .created_at = 3 });
 
-    const P = @TypeOf(.{@as(i64, 18)});
-    var rows = try orm.mapper.findMany(User, P, &db, a, "\"age\">?1 ORDER BY \"id\" ASC", .{@as(i64, 18)});
+    var rows = try repo.findManyRaw("\"age\">?1 ORDER BY \"id\" ASC", .{@as(i64, 18)});
     defer rows.deinit();
 
     var count: usize = 0;
 
     while (try rows.next()) |u| {
         var tmp = u;
-        defer orm.mapper.freeOwnedRow(User, a, &tmp);
+        defer repo.freeOwnedRow(&tmp);
 
         if (count == 0) {
             try std.testing.expectEqualStrings("bob", tmp.name.value);

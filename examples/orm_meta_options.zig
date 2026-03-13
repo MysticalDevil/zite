@@ -42,6 +42,7 @@ pub fn main() !void {
 
     var db = try zite.Db.open(a, ":memory:");
     defer db.deinit();
+    var repo = zite.orm.repository(User, &db, a);
 
     const ddl = try zite.schema.createTableSqlFromMeta(a, User);
     defer a.free(ddl);
@@ -54,7 +55,7 @@ pub fn main() !void {
         .created_at = .{ .value = 1700000000000 },
         .transient_field = try OwnedText.fromConst(a, "skip"),
     };
-    defer zite.mapper.freeOwnedRow(User, a, &user);
+    defer repo.freeOwnedRow(&user);
 
-    _ = try zite.mapper.insert(User, &db, user);
+    _ = try repo.insert(user);
 }

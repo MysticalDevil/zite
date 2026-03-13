@@ -22,16 +22,17 @@ test "mapper: blob round trip" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, Doc);
+    var repo = orm.orm.repository(Doc, &db, a);
 
     const payload = [_]u8{ 0, 1, 2, 3, 4, 5 };
     var data = try orm.types.OwnedBlob.fromConst(a, payload[0..]);
     defer data.deinit(a);
-    _ = try orm.mapper.insert(Doc, &db, .{
+    _ = try repo.insert(.{
         .id = 0,
         .data = data,
     });
 
-    var got = (try orm.mapper.findByIdOwned(Doc, &db, a, @as(i64, 1))).?;
+    var got = (try repo.findByIdOwned(@as(i64, 1))).?;
     defer got.deinit();
 
     try std.testing.expectEqual(@as(usize, payload.len), got.value.data.value.len);

@@ -28,6 +28,7 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
 
     var name1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
@@ -38,10 +39,10 @@ test "mapper.findById: insert -> findById -> update -> findById" {
         .created_at = 123,
     };
 
-    const new_id = try orm.mapper.insert(User, &db, u);
+    const new_id = try repo.insert(u);
     try std.testing.expect(new_id > 0);
 
-    var got1 = (try orm.mapper.findById(User, &db, a, new_id)).?;
+    var got1 = (try repo.findById(new_id)).?;
     defer freeUser(a, &got1);
 
     try std.testing.expectEqual(new_id, got1.id);
@@ -55,10 +56,10 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     u.name = name2;
     u.age = 42;
 
-    const changed = try orm.mapper.update(User, &db, u);
+    const changed = try repo.update(u);
     try std.testing.expectEqual(@as(i32, 1), changed);
 
-    var got2 = (try orm.mapper.findById(User, &db, a, new_id)).?;
+    var got2 = (try repo.findById(new_id)).?;
     defer freeUser(a, &got2);
 
     try std.testing.expectEqualStrings("alice2", got2.name.value);

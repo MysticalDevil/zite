@@ -22,6 +22,7 @@ test "mapper.insert + mapper.update: roundtrip" {
     defer db.deinit();
 
     try helpers.createTable(a, &db, User, "users");
+    var repo = orm.orm.repository(User, &db, a);
 
     var name1 = try orm.types.OwnedText.fromConst(a, "aice");
     defer name1.deinit(a);
@@ -32,7 +33,7 @@ test "mapper.insert + mapper.update: roundtrip" {
         .created_at = 123,
     };
 
-    const new_id = try orm.mapper.insert(User, &db, u);
+    const new_id = try repo.insert(u);
     try std.testing.expect(new_id > 0);
 
     u.id = new_id;
@@ -41,7 +42,7 @@ test "mapper.insert + mapper.update: roundtrip" {
     u.name = name2;
     u.age = 42;
 
-    const changed = try orm.mapper.update(User, &db, u);
+    const changed = try repo.update(u);
     try std.testing.expectEqual(@as(i32, 1), changed);
 
     var st = try orm.Stmt.init(&db, "SELECT name, age FROM users WHERE id=?1 LIMIT 1;");

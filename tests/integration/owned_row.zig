@@ -26,15 +26,16 @@ test "owned: findByIdOwned and findManyOwned free via deinit" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
 
     var name1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
     var name2 = try orm.types.OwnedText.fromConst(a, "bob");
     defer name2.deinit(a);
-    const id1 = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name1, .age = 10 });
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name2, .age = 20 });
+    const id1 = try repo.insert(.{ .id = 0, .name = name1, .age = 10 });
+    _ = try repo.insert(.{ .id = 0, .name = name2, .age = 20 });
 
-    if (try orm.mapper.findByIdOwned(User, &db, a, id1)) |owned| {
+    if (try repo.findByIdOwned(id1)) |owned| {
         var o = owned;
         defer o.deinit();
         try std.testing.expectEqualStrings("alice", o.value.name.value);
@@ -42,8 +43,7 @@ test "owned: findByIdOwned and findManyOwned free via deinit" {
         return error.TestExpectedRow;
     }
 
-    const P = @TypeOf(.{@as(i64, 0)});
-    var rows = try orm.mapper.findManyOwned(User, P, &db, a, "\"id\">?1 ORDER BY \"id\" ASC", .{@as(i64, 0)});
+    var rows = try repo.findManyOwnedRaw("\"id\">?1 ORDER BY \"id\" ASC", .{@as(i64, 0)});
     defer rows.deinit();
 
     var cnt: usize = 0;
@@ -66,6 +66,7 @@ test "owned: empty text is released without leaks" {
 
     var db = try orm.Db.open(a, ":memory:");
     defer db.deinit();
+    var repo = orm.orm.repository(User, &db, a);
 
     const ddl = try orm.schema.createTableSqlFromMeta(a, User);
     defer a.free(ddl);
@@ -73,8 +74,8 @@ test "owned: empty text is released without leaks" {
 
     var empty = try orm.types.OwnedText.fromConst(a, "");
     defer empty.deinit(a);
-    const id = try orm.mapper.insert(User, &db, .{ .id = 0, .name = empty, .age = null });
-    if (try orm.mapper.findByIdOwned(User, &db, a, id)) |owned| {
+    const id = try repo.insert(.{ .id = 0, .name = empty, .age = null });
+    if (try repo.findByIdOwned(id)) |owned| {
         var o = owned;
         defer o.deinit();
         try std.testing.expectEqual(@as(usize, 0), o.value.name.value.len);

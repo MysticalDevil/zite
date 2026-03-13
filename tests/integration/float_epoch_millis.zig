@@ -22,6 +22,7 @@ test "float + EpochMillis: insert -> findById -> findOne" {
 
     var db = try orm.Db.open(a, ":memory:");
     defer db.deinit();
+    var repo = orm.orm.repository(Sample, &db, a);
 
     const ddl = try orm.schema.createTableSqlFromMeta(a, Sample);
     defer a.free(ddl);
@@ -29,18 +30,17 @@ test "float + EpochMillis: insert -> findById -> findOne" {
 
     const now = types.EpochMillis{ .value = 1700000000123 };
 
-    const id = try orm.mapper.insert(Sample, &db, .{
+    const id = try repo.insert(.{
         .id = 0,
         .score = 12.5,
         .created_at = now,
     });
     try std.testing.expect(id > 0);
 
-    const got = (try orm.mapper.findById(Sample, &db, a, id)).?;
+    const got = (try repo.findById(id)).?;
     try std.testing.expectApproxEqAbs(@as(f64, 12.5), got.score, 0.000001);
     try std.testing.expectEqual(now.value, got.created_at.value);
 
-    const P = @TypeOf(.{@as(i64, now.value)});
-    const got2 = (try orm.mapper.findOne(Sample, P, &db, a, "\"created_at\"=?1", .{now.value})).?;
+    const got2 = (try repo.findOneRaw("\"created_at\"=?1", .{now.value})).?;
     try std.testing.expectEqual(id, got2.id);
 }

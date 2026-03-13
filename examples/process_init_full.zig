@@ -28,6 +28,7 @@ pub fn main(init: std.process.Init) !void {
 
     var db = try zite.Db.open(a, ":memory:");
     defer db.deinit();
+    var repo = zite.orm.repository(User, &db, a);
 
     const ddl = try zite.schema.createTableSqlFromMeta(a, User);
     defer a.free(ddl);
@@ -37,10 +38,10 @@ pub fn main(init: std.process.Init) !void {
         .id = 1,
         .name = try OwnedText.fromConst(a, name_value),
     };
-    defer zite.mapper.freeOwnedRow(User, a, &user);
-    _ = try zite.mapper.insert(User, &db, user);
+    defer repo.freeOwnedRow(&user);
+    _ = try repo.insert(user);
 
-    if (try zite.mapper.findByIdOwned(User, &db, a, 1)) |row| {
+    if (try repo.findByIdOwned(@as(i64, 1))) |row| {
         var owned = row;
         defer owned.deinit();
         std.debug.print("user name={s}\n", .{owned.value.name.value});

@@ -30,6 +30,7 @@ pub fn main() !void {
 
     var db = try zite.Db.open(a, ":memory:");
     defer db.deinit();
+    var repo = zite.orm.repository(User, &db, a);
 
     const ddl = try zite.schema.createTableSqlFromMeta(a, User);
     defer a.free(ddl);
@@ -39,12 +40,12 @@ pub fn main() !void {
         .id = 1,
         .email = try OwnedText.fromConst(a, "a@example.com"),
     };
-    defer zite.mapper.freeOwnedRow(User, a, &user);
-    _ = try zite.mapper.insert(User, &db, user);
+    defer repo.freeOwnedRow(&user);
+    _ = try repo.insert(user);
 
-    const Params = struct { email: []const u8 };
-    if (try zite.mapper.findOne(User, Params, &db, a, "email = ?", .{ .email = "a@example.com" })) |found| {
-        defer zite.mapper.freeOwnedRow(User, a, &found);
-        std.debug.print("id={d}\n", .{found.id});
+    if (try repo.findOneRaw("email = ?1", .{"a@example.com"})) |found| {
+        var owned = found;
+        defer repo.freeOwnedRow(&owned);
+        std.debug.print("id={d}\n", .{owned.id});
     }
 }

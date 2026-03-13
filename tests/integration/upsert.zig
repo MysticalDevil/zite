@@ -22,33 +22,34 @@ test "mapper.upsert: insert then update and no-op update keeps single row" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
 
     var name_insert = try orm.types.OwnedText.fromConst(a, "alice");
     defer name_insert.deinit(a);
-    const inserted = try orm.mapper.upsert(User, &db, .{
+    const inserted = try repo.upsert(.{
         .id = 1,
         .name = name_insert,
         .age = 20,
     });
-    try std.testing.expectEqual(orm.mapper.UpsertResult.inserted, inserted);
+    try std.testing.expectEqual(orm.orm.UpsertResult.inserted, inserted);
 
     var name_update = try orm.types.OwnedText.fromConst(a, "alice2");
     defer name_update.deinit(a);
-    const updated = try orm.mapper.upsert(User, &db, .{
+    const updated = try repo.upsert(.{
         .id = 1,
         .name = name_update,
         .age = 30,
     });
-    try std.testing.expectEqual(orm.mapper.UpsertResult.updated, updated);
+    try std.testing.expectEqual(orm.orm.UpsertResult.updated, updated);
 
     var name_same = try orm.types.OwnedText.fromConst(a, "alice2");
     defer name_same.deinit(a);
-    const updated_same = try orm.mapper.upsert(User, &db, .{
+    const updated_same = try repo.upsert(.{
         .id = 1,
         .name = name_same,
         .age = 30,
     });
-    try std.testing.expectEqual(orm.mapper.UpsertResult.updated, updated_same);
+    try std.testing.expectEqual(orm.orm.UpsertResult.updated, updated_same);
 
     var st_count = try orm.Stmt.init(&db, "SELECT COUNT(*) FROM users WHERE id=?1;");
     defer st_count.deinit();

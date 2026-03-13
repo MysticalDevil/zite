@@ -21,16 +21,17 @@ test "mapper.deleteById: removes record by primary key" {
     defer db.deinit();
 
     try helpers.createTable(a, &db, User, "users");
+    var repo = orm.orm.repository(User, &db, a);
 
     var name = try orm.types.OwnedText.fromConst(a, "alice");
     defer name.deinit(a);
-    const id = try orm.mapper.insert(User, &db, .{ .id = 0, .name = name, .age = null });
+    const id = try repo.insert(.{ .id = 0, .name = name, .age = null });
     try std.testing.expect(id > 0);
 
-    const changed = try orm.mapper.deleteById(User, &db, id);
+    const changed = try repo.deleteById(id);
     try std.testing.expectEqual(@as(i32, 1), changed);
 
-    const found = try orm.mapper.findById(User, &db, a, id);
+    const found = try repo.findById(id);
     try std.testing.expect(found == null);
 }
 
@@ -43,8 +44,9 @@ test "mapper.deleteById: returns 0 when id not found" {
     defer db.deinit();
 
     try helpers.createTable(a, &db, User, "users");
+    var repo = orm.orm.repository(User, &db, a);
 
-    const changed = try orm.mapper.deleteById(User, &db, 9999);
+    const changed = try repo.deleteById(@as(i64, 9999));
     try std.testing.expectEqual(@as(i32, 0), changed);
 }
 
@@ -57,27 +59,27 @@ test "mapper.deleteWhere: deletes matching rows" {
     defer db.deinit();
 
     try helpers.createTable(a, &db, User, "users");
+    var repo = orm.orm.repository(User, &db, a);
 
     // Insert two rows
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
     var n2 = try orm.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = n1, .age = @as(?i64, 30) });
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = n2, .age = @as(?i64, 25) });
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
+    _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 25) });
 
     // Delete only alice (age = 30)
-    const changed = try orm.mapper.deleteWhere(User, @TypeOf(.{@as(i64, 30)}), &db, "\"age\"=?1", .{@as(i64, 30)});
+    const changed = try repo.deleteWhereRaw("\"age\"=?1", .{@as(i64, 30)});
     try std.testing.expectEqual(@as(i32, 1), changed);
 
     // Bob should still exist
     var bob_name = try orm.types.OwnedText.fromConst(a, "bob");
     defer bob_name.deinit(a);
-    const P = @TypeOf(.{bob_name});
-    const bob = try orm.mapper.findOne(User, P, &db, a, "\"name\"=?1", .{bob_name});
+    const bob = try repo.findOneRaw("\"name\"=?1", .{bob_name});
     if (bob) |row| {
         var mut = row;
-        orm.mapper.freeOwnedRow(User, a, &mut);
+        repo.freeOwnedRow(&mut);
     } else {
         return error.ExpectedBobToExist;
     }
@@ -92,14 +94,15 @@ test "mapper.deleteWhere: no clause deletes all" {
     defer db.deinit();
 
     try helpers.createTable(a, &db, User, "users");
+    var repo = orm.orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
     var n2 = try orm.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = n1, .age = null });
-    _ = try orm.mapper.insert(User, &db, .{ .id = 0, .name = n2, .age = null });
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = null });
+    _ = try repo.insert(.{ .id = 0, .name = n2, .age = null });
 
-    const changed = try orm.mapper.deleteWhere(User, @TypeOf(.{}), &db, "", .{});
+    const changed = try repo.deleteWhereRaw("", .{});
     try std.testing.expectEqual(@as(i32, 2), changed);
 }

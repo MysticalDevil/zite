@@ -22,16 +22,17 @@ test "mapper: text round trip with types.OwnedText" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, Note);
+    var repo = orm.orm.repository(Note, &db, a);
 
     const payload = "hello text";
     var body = try orm.types.OwnedText.fromConst(a, payload);
     defer body.deinit(a);
-    _ = try orm.mapper.insert(Note, &db, .{
+    _ = try repo.insert(.{
         .id = 0,
         .body = body,
     });
 
-    var got = (try orm.mapper.findByIdOwned(Note, &db, a, @as(i64, 1))).?;
+    var got = (try repo.findByIdOwned(@as(i64, 1))).?;
     defer got.deinit();
 
     try std.testing.expectEqualStrings(payload, got.value.body.value);

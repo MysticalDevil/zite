@@ -23,6 +23,7 @@ test "mapper.insertMany: inserts multiple rows and supports empty input" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -31,14 +32,14 @@ test "mapper.insertMany: inserts multiple rows and supports empty input" {
     var n3 = try orm.types.OwnedText.fromConst(a, "carol");
     defer n3.deinit(a);
 
-    const inserted = try orm.mapper.insertMany(User, &db, &[_]User{
+    const inserted = try repo.insertMany(&[_]User{
         .{ .id = 0, .name = n1, .age = 20 },
         .{ .id = 0, .name = n2, .age = null },
         .{ .id = 0, .name = n3, .age = 30 },
     });
     try std.testing.expectEqual(@as(usize, 3), inserted);
 
-    const inserted_empty = try orm.mapper.insertMany(User, &db, &[_]User{});
+    const inserted_empty = try repo.insertMany(&[_]User{});
     try std.testing.expectEqual(@as(usize, 0), inserted_empty);
 
     var st_count = try orm.Stmt.init(&db, "SELECT COUNT(*) FROM users;");
