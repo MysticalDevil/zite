@@ -2,7 +2,7 @@ const std = @import("std");
 const Db = @import("../db/db.zig").Db;
 const Stmt = @import("../db/stmt.zig").Stmt;
 const types = @import("../core/types.zig");
-const engine = @import("engine/mod.zig");
+const engine = @import("engine.zig");
 
 const meta = @import("../core/meta.zig");
 const errors = @import("../core/errors.zig");
