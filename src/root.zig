@@ -11,8 +11,8 @@ pub const StepResult = @import("db/stmt.zig").StepResult;
 /// Diagnostics helpers.
 pub const diag = @import("db/diag.zig");
 
-/// ORM mapper utilities (insert/update/find...).
-pub const mapper = @import("orm/mapper.zig");
+/// ORM repository/query API.
+pub const orm = @import("orm/orm.zig");
 /// Core types such as OwnedText/OwnedBlob/EpochMillis.
 pub const types = @import("core/types.zig");
 /// Advanced API: struct metadata helpers.
@@ -22,5 +22,5 @@ pub const sqlutil = @import("core/sqlutil.zig");
 /// Schema generation helpers.
 pub const schema = @import("orm/schema.zig");
 
-/// OwnedRow wrapper for mapper allocations.
-pub const OwnedRow = mapper.OwnedRow;
+/// OwnedRow wrapper for ORM allocations.
+pub const OwnedRow = orm.OwnedRow;

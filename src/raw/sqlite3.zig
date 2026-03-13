@@ -46,6 +46,8 @@ pub const sqlite3_reset = c.sqlite3_reset;
 pub const sqlite3_bind_null = c.sqlite3_bind_null;
 /// sqlite3_bind_int64
 pub const sqlite3_bind_int64 = c.sqlite3_bind_int64;
+/// sqlite3_bind_int
+pub const sqlite3_bind_int = c.sqlite3_bind_int;
 /// sqlite3_bind_double
 pub const sqlite3_bind_double = c.sqlite3_bind_double;
 /// sqlite3_bind_text
