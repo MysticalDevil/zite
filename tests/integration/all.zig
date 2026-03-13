@@ -14,4 +14,5 @@ comptime {
     _ = @import("expected_errors.zig");
     _ = @import("errmsg.zig");
     _ = @import("owned_row.zig");
+    _ = @import("delete.zig");
 }

@@ -53,6 +53,8 @@ pub const ZiteError = error{
     UnexpectedRowOnInsert,
     /// UPDATE returned a row unexpectedly.
     UnexpectedRowOnUpdate,
+    /// DELETE returned a row unexpectedly.
+    UnexpectedRowOnDelete,
     /// More rows than expected (LIMIT 1) were returned.
     UnexpectedExtraRows,
 };

@@ -254,6 +254,81 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
     return db.changes();
 }
 
+/// Deletes a record by primary key; returns number of rows changed.
+pub fn deleteById(comptime T: type, db: *Db, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!i32 {
+    if (@typeInfo(T) != .@"struct") @compileError("deleteById expects a struct type");
+
+    const m = comptime meta.getMeta(T);
+    comptime {
+        if (meta.isSkipped(m.primary_key, m)) {
+            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
+        }
+    }
+
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(db.allocator);
+    var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
+    // "DELETE FROM " + table + " WHERE " + pk + "=?1;"
+    try b.reserve("DELETE FROM ".len + m.table.len + " WHERE ".len + m.primary_key.len + 2 + "=?1;".len);
+
+    try b.lit("DELETE FROM ");
+    try b.ident(m.table);
+    try b.lit(" WHERE ");
+    try b.ident(meta.pkColumnName(m));
+    try b.lit("=?1;");
+
+    const sql = try buf.toOwnedSlice(db.allocator);
+    defer db.allocator.free(sql);
+
+    var st = try Stmt.init(db, sql);
+    defer st.deinit();
+
+    try st.bindOne(1, id);
+
+    const r = try st.step();
+    if (r != .done) return error.UnexpectedRowOnDelete;
+
+    return db.changes();
+}
+
+/// Deletes records matching a WHERE clause; returns number of rows changed.
+/// where_clause is provided by caller (excluding "WHERE" prefix).
+/// params is a tuple/struct (e.g., .{ 123, "alice" }), bound to ?1..?N.
+pub fn deleteWhere(comptime T: type, comptime P: type, db: *Db, where_clause: []const u8, params: P) errors.ZiteError!i32 {
+    if (@typeInfo(T) != .@"struct") @compileError("deleteWhere expects a struct type");
+
+    const m = comptime meta.getMeta(T);
+    const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
+
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(db.allocator);
+    var b = sqlutil.SqlBuilder.init(&buf, db.allocator);
+    try b.reserve("DELETE FROM ".len + m.table.len + " WHERE ".len + trimmed.len + ";".len);
+
+    try b.lit("DELETE FROM ");
+    try b.ident(m.table);
+
+    if (trimmed.len != 0) {
+        try b.lit(" WHERE ");
+        try b.lit(trimmed);
+    }
+
+    try b.lit(";");
+
+    const sql = try buf.toOwnedSlice(db.allocator);
+    defer db.allocator.free(sql);
+
+    var st = try Stmt.init(db, sql);
+    defer st.deinit();
+
+    try st.bindAll(params);
+
+    const r = try st.step();
+    if (r != .done) return error.UnexpectedRowOnDelete;
+
+    return db.changes();
+}
+
 /// Fetches a record by primary key, allocating TEXT/BLOB fields.
 /// Returned rows must be freed with `freeOwnedRow` when they contain owned fields.
 pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!?T {
