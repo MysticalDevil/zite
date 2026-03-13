@@ -69,6 +69,7 @@ pub fn bindUpdateValues(comptime T: type, st: *Stmt, entity: T) errors.ZiteError
 
     inline for (fields) |f| {
         if (comptime meta.isPk(f.name, m.primary_key)) {
+            // The PK predicate is bound last and `bind_i` is not used after this.
             try st.bindOne(bind_i, @field(entity, f.name));
             break;
         }

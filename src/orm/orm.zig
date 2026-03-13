@@ -616,9 +616,10 @@ fn appendRebasedWhereSql(
                 i += 1;
             },
             .single_quote => {
-                try out.append(allocator, sql[i]);
+                const ch = sql[i];
+                try out.append(allocator, ch);
                 i += 1;
-                if (sql[i - 1] == '\'') {
+                if (ch == '\'') {
                     if (i < sql.len and sql[i] == '\'') {
                         try out.append(allocator, sql[i]);
                         i += 1;
@@ -628,9 +629,10 @@ fn appendRebasedWhereSql(
                 }
             },
             .double_quote => {
-                try out.append(allocator, sql[i]);
+                const ch = sql[i];
+                try out.append(allocator, ch);
                 i += 1;
-                if (sql[i - 1] == '"') {
+                if (ch == '"') {
                     if (i < sql.len and sql[i] == '"') {
                         try out.append(allocator, sql[i]);
                         i += 1;
@@ -640,9 +642,10 @@ fn appendRebasedWhereSql(
                 }
             },
             .line_comment => {
-                try out.append(allocator, sql[i]);
+                const ch = sql[i];
+                try out.append(allocator, ch);
                 i += 1;
-                if (sql[i - 1] == '\n') {
+                if (ch == '\n') {
                     state = .code;
                 }
             },
@@ -687,6 +690,23 @@ test "orm: appendRebasedWhereSql skips quoted text and comments" {
 
     try std.testing.expectEqualStrings(
         "\"name\" = ?5 /* ?2 */ AND note = '?3' -- ?4\nAND \"age\" = ?6",
+        out.items,
+    );
+}
+
+test "orm: appendRebasedWhereSql keeps question marks inside live quotes untouched" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    try appendRebasedWhereSql(
+        std.testing.allocator,
+        &out,
+        "'ab?cd' = note AND \"co?l\" = ?1 AND name = 'x''?''y'",
+        3,
+    );
+
+    try std.testing.expectEqualStrings(
+        "'ab?cd' = note AND \"co?l\" = ?4 AND name = 'x''?''y'",
         out.items,
     );
 }

@@ -246,8 +246,10 @@ pub fn update(comptime T: type, db: *Db, entity: T) errors.ZiteError!i32 {
 /// When PK is included in INSERT (`skip_primary_key_on_insert=false`), uses
 /// INSERT-first fallback to reduce race windows.
 /// When PK is omitted from INSERT (`skip_primary_key_on_insert=true`), falls
-/// back to exists+update semantics for compatibility. Callers that need
-/// cross-connection write atomicity should wrap this path in an explicit
+/// back to exists+update semantics for compatibility. This path is only safe
+/// for serial callers; concurrent use across connections or shared connection
+/// access can still observe a race between the existence check and `INSERT`.
+/// Callers that need atomicity should wrap this path in an explicit
 /// transaction.
 /// The caller is responsible for freeing any owned fields in `entity`.
 pub fn upsert(comptime T: type, db: *Db, entity: T) errors.ZiteError!UpsertResult {

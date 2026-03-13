@@ -203,6 +203,8 @@ For multi-connection write contention, prefer wrapping related writes (including
 `upsert`) in an explicit transaction to make behavior easier to reason about.
 This is especially important when `Meta.skip_primary_key_on_insert = true`,
 because that compatibility path still uses an existence check before `INSERT`.
+That path is only safe for serial callers; concurrent access, even through a
+shared connection, can still observe a race.
 
 ## Owned Types
 
