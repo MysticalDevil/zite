@@ -98,6 +98,14 @@ const QueryParam = union(enum) {
     blob: []const u8,
 };
 
+const SqlScanState = enum {
+    code,
+    single_quote,
+    double_quote,
+    line_comment,
+    block_comment,
+};
+
 pub fn BorrowedOne(comptime T: type) type {
     return struct {
         rows: RowsBorrowed(T),
@@ -316,6 +324,9 @@ pub fn Query(comptime T: type) type {
             try self.appendParam(value);
         }
 
+        /// Appends a raw WHERE fragment and binds params using fragment-local
+        /// placeholder numbering. `?1`, `?2`, and bare `?` are rebased against
+        /// the query's existing parameter count before prepare/bind.
         pub fn whereRaw(self: *Self, sql: []const u8, params: anytype) errors.ZiteError!void {
             const trimmed = std.mem.trim(u8, sql, " \t\r\n");
             const where_len_before = self.where_buf.items.len;
@@ -327,7 +338,12 @@ pub fn Query(comptime T: type) type {
 
             if (trimmed.len != 0) {
                 try self.appendWherePrefix();
-                try self.where_buf.appendSlice(self.db.allocator, trimmed);
+                try appendRebasedWhereSql(
+                    self.db.allocator,
+                    &self.where_buf,
+                    trimmed,
+                    params_len_before,
+                );
             }
 
             const P = @TypeOf(params);
@@ -533,4 +549,144 @@ fn bindQueryParam(st: *Stmt, idx: i32, p: QueryParam) errors.ZiteError!void {
         .text => |v| try st.bindText(idx, v),
         .blob => |v| try st.bindBlob(idx, v),
     }
+}
+
+fn appendRebasedWhereSql(
+    allocator: std.mem.Allocator,
+    out: *std.ArrayList(u8),
+    sql: []const u8,
+    base_index: usize,
+) errors.ZiteError!void {
+    var state: SqlScanState = .code;
+    var i: usize = 0;
+    var next_relative_index: usize = 1;
+
+    while (i < sql.len) {
+        switch (state) {
+            .code => {
+                if (sql[i] == '\'') {
+                    state = .single_quote;
+                    try out.append(allocator, sql[i]);
+                    i += 1;
+                    continue;
+                }
+                if (sql[i] == '"') {
+                    state = .double_quote;
+                    try out.append(allocator, sql[i]);
+                    i += 1;
+                    continue;
+                }
+                if (sql[i] == '-' and i + 1 < sql.len and sql[i + 1] == '-') {
+                    state = .line_comment;
+                    try out.appendSlice(allocator, sql[i .. i + 2]);
+                    i += 2;
+                    continue;
+                }
+                if (sql[i] == '/' and i + 1 < sql.len and sql[i + 1] == '*') {
+                    state = .block_comment;
+                    try out.appendSlice(allocator, sql[i .. i + 2]);
+                    i += 2;
+                    continue;
+                }
+                if (sql[i] == '?') {
+                    var j = i + 1;
+                    while (j < sql.len and std.ascii.isDigit(sql[j])) {
+                        j += 1;
+                    }
+
+                    if (j == i + 1) {
+                        try out.print(allocator, "?{}", .{base_index + next_relative_index});
+                        next_relative_index += 1;
+                    } else {
+                        var local_index: usize = 0;
+                        var k = i + 1;
+                        while (k < j) : (k += 1) {
+                            local_index = (local_index * 10) + (sql[k] - '0');
+                        }
+                        try out.print(allocator, "?{}", .{base_index + local_index});
+                        if (local_index >= next_relative_index) {
+                            next_relative_index = local_index + 1;
+                        }
+                    }
+                    i = j;
+                    continue;
+                }
+
+                try out.append(allocator, sql[i]);
+                i += 1;
+            },
+            .single_quote => {
+                try out.append(allocator, sql[i]);
+                i += 1;
+                if (sql[i - 1] == '\'') {
+                    if (i < sql.len and sql[i] == '\'') {
+                        try out.append(allocator, sql[i]);
+                        i += 1;
+                    } else {
+                        state = .code;
+                    }
+                }
+            },
+            .double_quote => {
+                try out.append(allocator, sql[i]);
+                i += 1;
+                if (sql[i - 1] == '"') {
+                    if (i < sql.len and sql[i] == '"') {
+                        try out.append(allocator, sql[i]);
+                        i += 1;
+                    } else {
+                        state = .code;
+                    }
+                }
+            },
+            .line_comment => {
+                try out.append(allocator, sql[i]);
+                i += 1;
+                if (sql[i - 1] == '\n') {
+                    state = .code;
+                }
+            },
+            .block_comment => {
+                try out.append(allocator, sql[i]);
+                i += 1;
+                if (i >= 2 and sql[i - 2] == '*' and sql[i - 1] == '/') {
+                    state = .code;
+                }
+            },
+        }
+    }
+}
+
+test "orm: appendRebasedWhereSql rebases positional placeholders" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    try appendRebasedWhereSql(
+        std.testing.allocator,
+        &out,
+        "\"age\" > ?1 AND \"name\" = ? AND note = '?9'",
+        2,
+    );
+
+    try std.testing.expectEqualStrings(
+        "\"age\" > ?3 AND \"name\" = ?4 AND note = '?9'",
+        out.items,
+    );
+}
+
+test "orm: appendRebasedWhereSql skips quoted text and comments" {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(std.testing.allocator);
+
+    try appendRebasedWhereSql(
+        std.testing.allocator,
+        &out,
+        "\"name\" = ?1 /* ?2 */ AND note = '?3' -- ?4\nAND \"age\" = ?",
+        4,
+    );
+
+    try std.testing.expectEqualStrings(
+        "\"name\" = ?5 /* ?2 */ AND note = '?3' -- ?4\nAND \"age\" = ?6",
+        out.items,
+    );
 }

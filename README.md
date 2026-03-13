@@ -161,9 +161,14 @@ pub const Meta = .{
 Use `repo.query()` for typed query building. `Meta.order_by` is used as the
 default order when builder order is not explicitly set.
 
+`whereRaw` rebases placeholders relative to the current query parameter count.
+That means `?1`, `?2`, or bare `?` inside the raw fragment are local to that
+fragment, even when mixed with earlier `whereEq` calls.
+
 ```zig
 var q = repo.query();
 try q.whereEq("id", @as(i64, 1));
+try q.whereRaw("\"name\"=?1", .{"alice"});
 try q.orderBy("id", .asc);
 q.setLimit(20);
 q.setOffset(40);
@@ -196,6 +201,8 @@ try tx.commit();
 
 For multi-connection write contention, prefer wrapping related writes (including
 `upsert`) in an explicit transaction to make behavior easier to reason about.
+This is especially important when `Meta.skip_primary_key_on_insert = true`,
+because that compatibility path still uses an existence check before `INSERT`.
 
 ## Owned Types
 
@@ -220,6 +227,9 @@ if (try st.step() == .row) {
     }
 }
 ```
+
+`colTextOwned` / `colBlobOwned` return `null` only for SQL `NULL`. Empty text or
+blob values return a non-null empty slice.
 
 `Stmt` enforces lifecycle validity. After `deinit()`/`finalize()`, all statement
 operations return `error.StatementFinalized`.

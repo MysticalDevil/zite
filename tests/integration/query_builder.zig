@@ -249,7 +249,7 @@ test "orm.query: whereRaw then whereEq keeps placeholder indices aligned" {
     try std.testing.expectEqual(@as(i64, 40), one_mut.value.age.?);
 }
 
-test "orm.query: whereEq then whereRaw keeps placeholder indices aligned" {
+test "orm.query: whereEq then whereRaw rebases relative placeholders" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -269,11 +269,40 @@ test "orm.query: whereEq then whereRaw keeps placeholder indices aligned" {
     var q = repo.query();
     defer q.deinit();
     try q.whereEq("age", @as(i64, 30)); // uses ?1
-    try q.whereRaw("\"name\"=?2", .{"alice"}); // raw follows existing parameter index
+    try q.whereRaw("\"name\"=?1", .{"alice"});
 
     const one = (try q.firstOwned()).?;
     var one_mut = one;
     defer one_mut.deinit();
     try std.testing.expectEqualStrings("alice", one_mut.value.name.value);
     try std.testing.expectEqual(@as(i64, 30), one_mut.value.age.?);
+}
+
+test "orm.query: whereRaw rebases anonymous placeholders after whereEq" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer n2.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
+    _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 40) });
+
+    var q = repo.query();
+    defer q.deinit();
+    try q.whereEq("age", @as(i64, 40));
+    try q.whereRaw("\"name\"=?", .{"bob"});
+
+    const one = (try q.firstOwned()).?;
+    var one_mut = one;
+    defer one_mut.deinit();
+    try std.testing.expectEqualStrings("bob", one_mut.value.name.value);
+    try std.testing.expectEqual(@as(i64, 40), one_mut.value.age.?);
 }
