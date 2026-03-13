@@ -9,8 +9,7 @@ fn sqlSnippet(sql: []const u8) []const u8 {
 }
 
 fn enabledInThisBuild() bool {
-    if (!builtin.is_test) return true;
-    return false;
+    return !builtin.is_test;
 }
 
 /// Logs a sqlite failure with optional SQL snippet (if enabled).

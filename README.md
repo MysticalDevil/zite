@@ -197,7 +197,7 @@ try tx.commit();
 
 ```zig
 var name = try zite.types.OwnedText.fromConst(a, "Alice");
-defer a.free(name.value);
+defer name.deinit(a);
 ```
 
 ## Manual SQL (Stmt API)
@@ -214,6 +214,9 @@ if (try st.step() == .row) {
 }
 ```
 
+`Stmt` enforces lifecycle validity. After `deinit()`/`finalize()`, all statement
+operations return `error.StatementFinalized`.
+
 ## Errors
 
 All public APIs return `errors.ZiteError`. SQLite return codes are mapped to
@@ -223,7 +226,6 @@ specific errors (busy, constraint, io, etc.) where possible.
 
 - `zig build test` runs unit tests.
 - `zig build itest` runs integration tests.
-- `zig build itest -Ddiag_enable_in_tests=true` enables sqlite diagnostics.
 
 ## Zig Version
 

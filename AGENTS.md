@@ -33,6 +33,7 @@
 - Tests are written with `zig test` via `zig build test` and `zig build itest`.
 - Integration tests live in `tests/integration/*.zig` and are pulled into `tests/itest.zig`.
 - Name new integration tests as `tests/integration/<feature>.zig` and wire them into `tests/itest.zig`.
+- No lingering warnings are allowed: `zig build`, `zig build test`, and `zig build itest` must complete without warning output.
 
 ## Zig 0.16 Notes
 - This branch targets Zig 0.16 and does not preserve compatibility with older Zig versions.

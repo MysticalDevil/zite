@@ -5,15 +5,6 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Build-time options.
-    const diag_enable_in_tests =
-        b.option(bool, "diag_enable_in_tests", "Enable sqlite diagnostics output during tests") orelse false;
-
-    // Options module imported by runtime code.
-    const opts = b.addOptions();
-    opts.addOption(bool, "diag_enable_in_tests", diag_enable_in_tests);
-    const options_mod = opts.createModule();
-
     // Library module.
     const zite_mod = b.addModule("zite", .{
         .root_source_file = b.path("src/root.zig"),
@@ -22,7 +13,6 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
     zite_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
-    zite_mod.addImport("build_options", options_mod);
 
     // Unit tests for library module.
     const unit_tests = b.addTest(.{
@@ -41,7 +31,6 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
     unit_file_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
-    unit_file_mod.addImport("build_options", options_mod);
 
     const unit_file_tests = b.addTest(.{
         .root_module = unit_file_mod,
@@ -60,7 +49,6 @@ pub fn build(b: *std.Build) void {
         },
     });
     it_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
-    it_mod.addImport("build_options", options_mod);
 
     const itests = b.addTest(.{
         .root_module = it_mod,
