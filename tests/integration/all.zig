@@ -6,6 +6,7 @@ comptime {
     _ = @import("stmt_prepare_step.zig");
     _ = @import("stmt_bind_all.zig");
     _ = @import("insert_update.zig");
+    _ = @import("insert_many.zig");
     _ = @import("stmt_column_owned.zig");
     _ = @import("find_by_id.zig");
     _ = @import("find_one.zig");
