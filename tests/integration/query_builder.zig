@@ -109,3 +109,76 @@ test "orm.query: iterateBorrowed and repo borrowed lookups are zero-copy" {
         return error.TestExpectedRow;
     }
 }
+
+test "orm.query: borrowed row becomes stale after iterator advances" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer n2.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
+    _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 22) });
+
+    var q = repo.query();
+    defer q.deinit();
+    try q.orderBy("id", .asc);
+    var rows = try q.iterateBorrowed();
+    defer rows.deinit();
+
+    const r1 = (try rows.next()).?;
+    _ = try rows.next();
+    try std.testing.expectError(error.BorrowedRowStale, r1.get("name"));
+}
+
+test "orm.query: borrowed one is invalid after deinit" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
+
+    var one = (try repo.findByIdBorrowed(@as(i64, 1))).?;
+    one.deinit();
+    try std.testing.expectError(error.StatementFinalized, one.get("name"));
+}
+
+test "orm.query: whereRaw is atomic when param conversion fails" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var q = repo.query();
+    defer q.deinit();
+
+    const where_len_before = q.where_buf.items.len;
+    const params_len_before = q.params.items.len;
+
+    const bad = [_]i32{ 1, 2 };
+    try std.testing.expectError(
+        error.UnsupportedBindType,
+        q.whereRaw("\"id\"=?1", .{bad[0..]}),
+    );
+
+    try std.testing.expectEqual(where_len_before, q.where_buf.items.len);
+    try std.testing.expectEqual(params_len_before, q.params.items.len);
+}

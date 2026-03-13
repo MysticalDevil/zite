@@ -42,7 +42,9 @@ pub const Db = struct {
         /// Rolls back unfinished transactions. Ignores rollback errors in cleanup paths.
         pub fn deinit(self: *TxSelf) void {
             if (self.finished) return;
-            _ = self.db.exec("ROLLBACK;") catch {};
+            self.db.exec("ROLLBACK;") catch |err| {
+                std.log.warn("sqlite warning what=tx_rollback_failed err={}", .{err});
+            };
             self.finished = true;
         }
     };
@@ -134,10 +136,12 @@ pub const Db = struct {
     }
 
     /// Records that a statement has been finalized.
-    pub fn unregisterStmt(self: *Self) void {
-        if (self.active_stmts > 0) {
-            self.active_stmts -= 1;
+    /// Returns an error if the counter would underflow.
+    pub fn unregisterStmt(self: *Self) errors.ZiteError!void {
+        if (self.active_stmts <= 0) {
+            return error.StatementCountUnderflow;
         }
+        self.active_stmts -= 1;
     }
 };
 
@@ -167,13 +171,13 @@ test "db: exec invalid SQL returns error and errmsg" {
     try std.testing.expect(msg.len != 0);
 }
 
-test "db: register/unregister clamp underflow" {
+test "db: register/unregister underflow returns error" {
     var db = try Db.open(std.testing.allocator, ":memory:");
     defer db.deinit();
 
     db.registerStmt();
-    db.unregisterStmt();
-    db.unregisterStmt();
+    try db.unregisterStmt();
+    try std.testing.expectError(error.StatementCountUnderflow, db.unregisterStmt());
     try std.testing.expectEqual(@as(i32, 0), db.active_stmts);
 }
 
@@ -197,7 +201,7 @@ test "db: transaction commit persists changes" {
     var st = try @import("stmt.zig").Stmt.init(&db, "SELECT COUNT(*) FROM t;");
     defer st.deinit();
     try std.testing.expectEqual(@import("stmt.zig").StepResult.row, try st.step());
-    try std.testing.expectEqual(@as(i64, 1), st.colInt(0));
+    try std.testing.expectEqual(@as(i64, 1), try st.colInt(0));
 }
 
 test "db: transaction deinit rolls back unfinished work" {
@@ -222,5 +226,5 @@ test "db: transaction deinit rolls back unfinished work" {
     var st = try @import("stmt.zig").Stmt.init(&db, "SELECT COUNT(*) FROM t;");
     defer st.deinit();
     try std.testing.expectEqual(@import("stmt.zig").StepResult.row, try st.step());
-    try std.testing.expectEqual(@as(i64, 0), st.colInt(0));
+    try std.testing.expectEqual(@as(i64, 0), try st.colInt(0));
 }

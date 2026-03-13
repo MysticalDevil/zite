@@ -8,6 +8,8 @@ const mapper = @import("mapper.zig");
 const engine = @import("engine.zig");
 
 pub const UpsertResult = mapper.UpsertResult;
+pub const TxMode = Db.TxMode;
+pub const Tx = Db.Tx;
 
 pub const OrderDir = enum {
     asc,
@@ -16,15 +18,17 @@ pub const OrderDir = enum {
 
 pub fn BorrowedRow(comptime T: type) type {
     return struct {
-        st: *Stmt,
+        owner: *RowsBorrowed(T),
+        row_generation: usize,
 
         const Self = @This();
         const m = meta.getMeta(T);
 
         pub fn get(self: Self, comptime field: []const u8) errors.ZiteError!BorrowedFieldType(T, field) {
+            try self.owner.ensureRowAlive(self.row_generation);
             const col = comptime fieldColumnIndex(field);
             const FieldT = comptime fieldType(field);
-            return engine.row.readValueBorrowed(FieldT, self.st, @as(i32, @intCast(col)));
+            return engine.row.readValueBorrowed(FieldT, &self.owner.st, @as(i32, @intCast(col)));
         }
 
         fn fieldType(comptime field: []const u8) type {
@@ -98,11 +102,15 @@ pub fn OwnedRow(comptime T: type) type {
 pub fn BorrowedOne(comptime T: type) type {
     return struct {
         rows: RowsBorrowed(T),
+        row_generation: usize,
 
         const Self = @This();
 
         pub fn get(self: *Self, comptime field: []const u8) errors.ZiteError!BorrowedFieldType(T, field) {
-            return (BorrowedRow(T){ .st = &self.rows.st }).get(field);
+            return (BorrowedRow(T){
+                .owner = &self.rows,
+                .row_generation = self.row_generation,
+            }).get(field);
         }
 
         pub fn deinit(self: *Self) void {
@@ -252,32 +260,44 @@ pub fn RowsBorrowed(comptime T: type) type {
     return struct {
         st: Stmt,
         done: bool = false,
+        cursor_generation: usize = 0,
 
         const Self = @This();
 
         pub fn deinit(self: *Self) void {
-            if (!self.done) {
-                self.st.deinit();
-                self.done = true;
-            }
+            self.closeAndInvalidate();
         }
 
         pub fn next(self: *Self) errors.ZiteError!?BorrowedRow(T) {
             if (self.done) return null;
 
             errdefer {
-                self.st.deinit();
-                self.done = true;
+                self.closeAndInvalidate();
             }
 
             const r = try self.st.step();
             if (r == .done) {
-                self.st.deinit();
-                self.done = true;
+                self.closeAndInvalidate();
                 return null;
             }
 
-            return .{ .st = &self.st };
+            self.cursor_generation +%= 1;
+            return .{
+                .owner = self,
+                .row_generation = self.cursor_generation,
+            };
+        }
+
+        fn ensureRowAlive(self: *const Self, row_generation: usize) errors.ZiteError!void {
+            if (self.st.isFinalized()) return error.StatementFinalized;
+            if (self.cursor_generation != row_generation) return error.BorrowedRowStale;
+        }
+
+        fn closeAndInvalidate(self: *Self) void {
+            if (self.done) return;
+            self.st.deinit();
+            self.done = true;
+            self.cursor_generation +%= 1;
         }
     };
 }
@@ -311,6 +331,12 @@ pub fn Query(comptime T: type) type {
         pub fn whereEq(self: *Self, comptime field: []const u8, value: anytype) errors.ZiteError!void {
             const column = comptime columnForField(field);
             const idx = self.params.items.len + 1;
+            const where_len_before = self.where_buf.items.len;
+            const params_len_before = self.params.items.len;
+            errdefer {
+                self.where_buf.shrinkRetainingCapacity(where_len_before);
+                self.params.shrinkRetainingCapacity(params_len_before);
+            }
 
             try self.appendWherePrefix();
             try self.where_buf.append(self.db.allocator, '"');
@@ -322,6 +348,13 @@ pub fn Query(comptime T: type) type {
 
         pub fn whereRaw(self: *Self, sql: []const u8, params: anytype) errors.ZiteError!void {
             const trimmed = std.mem.trim(u8, sql, " \t\r\n");
+            const where_len_before = self.where_buf.items.len;
+            const params_len_before = self.params.items.len;
+            errdefer {
+                self.where_buf.shrinkRetainingCapacity(where_len_before);
+                self.params.shrinkRetainingCapacity(params_len_before);
+            }
+
             if (trimmed.len != 0) {
                 try self.appendWherePrefix();
                 try self.where_buf.appendSlice(self.db.allocator, trimmed);
@@ -364,9 +397,10 @@ pub fn Query(comptime T: type) type {
 
         pub fn firstBorrowed(self: *Self) errors.ZiteError!?BorrowedOne(T) {
             var rows = try self.iterateBorrowedWithLimit(1);
-            if (try rows.next()) |_| {
+            if (try rows.next()) |row| {
                 return .{
                     .rows = rows,
+                    .row_generation = row.row_generation,
                 };
             }
             return null;

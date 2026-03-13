@@ -31,6 +31,8 @@ pub const ZiteError = error{
     SqliteResetFailed,
     /// sqlite3_step failed.
     SqliteStepFailed,
+    /// sqlite3_finalize failed.
+    SqliteFinalizeFailed,
     /// sqlite3_bind_* failed.
     SqliteBindFailed,
 
@@ -42,8 +44,16 @@ pub const ZiteError = error{
     UnexpectedColumnType,
     /// Column was NULL when a non-optional value was required.
     UnexpectedNull,
+    /// Borrowed row/view accessed after its statement was finalized.
+    StatementFinalized,
+    /// Borrowed row/view accessed after iterator advanced to another row.
+    BorrowedRowStale,
+    /// Statement bookkeeping underflowed (double-finalize or mismatched lifecycle).
+    StatementCountUnderflow,
     /// bindAll expects a struct/tuple.
     BindAllExpectedStructOrTuple,
+    /// WHERE clause must not be empty for destructive operations.
+    EmptyWhereClause,
 
     /// No insertable fields found for INSERT.
     NoInsertableFields,

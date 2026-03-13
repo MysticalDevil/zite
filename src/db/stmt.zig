@@ -49,20 +49,44 @@ pub const Stmt = struct {
     }
 
     /// Finalizes the underlying SQLite statement (idempotent).
-    pub fn finalize(self: *Self) void {
+    pub fn finalize(self: *Self) errors.ZiteError!void {
         if (self.finalized) return;
-        _ = raw.stmt.finalize(self.stmt);
+
+        const rc = raw.stmt.finalize(self.stmt);
         self.finalized = true;
-        self.db.unregisterStmt();
+        var unregister_err: ?errors.ZiteError = null;
+        self.db.unregisterStmt() catch |err| {
+            unregister_err = err;
+        };
+
+        if (rc != db_ok) {
+            if (unregister_err) |err| return err;
+            diag.logSqlite(self.db, rc, "sqlite3_finalize", null);
+            return sqlite_errors.mapSqliteRc(rc, error.SqliteFinalizeFailed);
+        }
+        if (unregister_err) |err| return err;
     }
 
     /// Alias for finalize() to match deinit patterns.
     pub fn deinit(self: *Self) void {
-        self.finalize();
+        self.finalize() catch |err| {
+            // Cleanup paths must stay quiet for expected statement failures
+            // (for example, constraint errors already observed by callers).
+            // Only log lifecycle bookkeeping corruption.
+            if (err == error.StatementCountUnderflow) {
+                std.log.warn("sqlite warning what=stmt_unregister_failed err={}", .{err});
+            }
+        };
+    }
+
+    /// Returns whether this statement has been finalized.
+    pub fn isFinalized(self: *const Self) bool {
+        return self.finalized;
     }
 
     /// Resets the statement so it can be re-executed.
     pub fn reset(self: *Self) errors.ZiteError!void {
+        try self.ensureOpen();
         const rc = raw.stmt.reset(self.stmt);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_reset", null);
@@ -73,6 +97,7 @@ pub const Stmt = struct {
     /// Steps the statement. Returns .row for a row, .done when complete.
     /// The caller must read columns before stepping again.
     pub fn step(self: *Stmt) errors.ZiteError!StepResult {
+        try self.ensureOpen();
         const rc = raw.stmt.step(self.stmt);
         return switch (rc) {
             raw.SQLITE_ROW => .row,
@@ -87,6 +112,7 @@ pub const Stmt = struct {
     // ---------- bind (1-based index) ----------
     /// Binds NULL to a 1-based parameter index.
     pub fn bindNull(self: *Self, idx: i32) errors.ZiteError!void {
+        try self.ensureOpen();
         const rc = raw.stmt.bindNull(self.stmt, idx);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_null", null);
@@ -97,6 +123,7 @@ pub const Stmt = struct {
 
     /// Binds an integer to a 1-based parameter index.
     pub fn bindInt(self: *Self, idx: i32, value: i64) errors.ZiteError!void {
+        try self.ensureOpen();
         const rc = raw.stmt.bindInt64(self.stmt, idx, value);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_int64", null);
@@ -107,6 +134,7 @@ pub const Stmt = struct {
 
     /// Binds a double to a 1-based parameter index.
     pub fn bindFloat(self: *Self, idx: i32, value: f64) errors.ZiteError!void {
+        try self.ensureOpen();
         const rc = raw.stmt.bindDouble(self.stmt, idx, @as(f64, @floatCast(value)));
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_double", null);
@@ -117,6 +145,7 @@ pub const Stmt = struct {
 
     /// Binds a boolean to a 1-based parameter index.
     pub fn bindBool(self: *Self, idx: i32, value: bool) errors.ZiteError!void {
+        try self.ensureOpen();
         const rc = raw.stmt.bindInt(self.stmt, idx, if (value) 1 else 0);
         if (rc != db_ok) {
             diag.logSqlite(self.db, rc, "sqlite3_bind_int", null);
@@ -127,6 +156,7 @@ pub const Stmt = struct {
 
     /// Binds a UTF-8 string to a 1-based parameter index.
     pub fn bindText(self: *Self, idx: i32, value: []const u8) errors.ZiteError!void {
+        try self.ensureOpen();
         const n: i32 = @intCast(value.len);
         const rc = raw.stmt.bindText(self.stmt, idx, value.ptr, n);
         if (rc != db_ok) {
@@ -138,6 +168,7 @@ pub const Stmt = struct {
 
     /// Binds a blob to a 1-based parameter index.
     pub fn bindBlob(self: *Self, idx: i32, value: []const u8) errors.ZiteError!void {
+        try self.ensureOpen();
         const n: i32 = @intCast(value.len);
         const rc = raw.stmt.bindBlob(self.stmt, idx, value.ptr, n);
         if (rc != db_ok) {
@@ -198,27 +229,32 @@ pub const Stmt = struct {
 
     // --------- column (0-based index, valid when step()==.row) ----------
     /// Reads an integer column value.
-    pub fn colInt(self: *Self, col: i32) i64 {
+    pub fn colInt(self: *Self, col: i32) errors.ZiteError!i64 {
+        try self.ensureOpen();
         return raw.stmt.columnInt64(self.stmt, col);
     }
 
     /// Reads a boolean column value (0/1).
-    pub fn colBool(self: *Self, col: i32) bool {
+    pub fn colBool(self: *Self, col: i32) errors.ZiteError!bool {
+        try self.ensureOpen();
         return raw.stmt.columnInt(self.stmt, col) != 0;
     }
 
     /// Reads a double column value.
-    pub fn colDouble(self: *Stmt, col: i32) f64 {
+    pub fn colDouble(self: *Stmt, col: i32) errors.ZiteError!f64 {
+        try self.ensureOpen();
         return raw.stmt.columnDouble(self.stmt, col);
     }
 
     /// Returns true if the column is NULL.
-    pub fn colIsNull(self: *Self, col: i32) bool {
+    pub fn colIsNull(self: *Self, col: i32) errors.ZiteError!bool {
+        try self.ensureOpen();
         return raw.stmt.columnType(self.stmt, col) == raw.SQLITE_NULL;
     }
 
     /// Returns an owned copy of TEXT data (caller frees with allocator).
     pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
+        try self.ensureOpen();
         const p = raw.stmt.columnText(self.stmt, col);
         if (p == null) return null;
 
@@ -233,8 +269,8 @@ pub const Stmt = struct {
 
     /// Returns borrowed TEXT data without copying.
     /// The returned slice is valid only until the next step/reset/finalize.
-    pub fn colTextBorrowed(self: *Self, col: i32) ?[]const u8 {
-        if (self.colIsNull(col)) return null;
+    pub fn colTextBorrowed(self: *Self, col: i32) errors.ZiteError!?[]const u8 {
+        if (try self.colIsNull(col)) return null;
 
         const n = raw.stmt.columnBytes(self.stmt, col);
         const len: usize = @intCast(n);
@@ -247,6 +283,7 @@ pub const Stmt = struct {
 
     /// Returns an owned copy of BLOB data (caller frees with allocator).
     pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
+        try self.ensureOpen();
         const p = raw.stmt.columnBlob(self.stmt, col);
         if (p == null) return null;
 
@@ -261,8 +298,8 @@ pub const Stmt = struct {
 
     /// Returns borrowed BLOB data without copying.
     /// The returned slice is valid only until the next step/reset/finalize.
-    pub fn colBlobBorrowed(self: *Self, col: i32) ?[]const u8 {
-        if (self.colIsNull(col)) return null;
+    pub fn colBlobBorrowed(self: *Self, col: i32) errors.ZiteError!?[]const u8 {
+        if (try self.colIsNull(col)) return null;
 
         const n = raw.stmt.columnBytes(self.stmt, col);
         const len: usize = @intCast(n);
@@ -271,6 +308,10 @@ pub const Stmt = struct {
         const p = raw.stmt.columnBlob(self.stmt, col) orelse return &.{};
         const src: [*]const u8 = @ptrCast(p);
         return src[0..len];
+    }
+
+    fn ensureOpen(self: *const Self) errors.ZiteError!void {
+        if (self.finalized) return error.StatementFinalized;
     }
 };
 
@@ -284,13 +325,13 @@ test "stmt: bindInt and reset" {
 
     try st.bindInt(1, 1);
     try std.testing.expectEqual(StepResult.row, try st.step());
-    try std.testing.expect(st.colBool(0));
+    try std.testing.expect(try st.colBool(0));
     try std.testing.expectEqual(StepResult.done, try st.step());
 
     try st.reset();
     try st.bindInt(1, 0);
     try std.testing.expectEqual(StepResult.row, try st.step());
-    try std.testing.expect(!st.colBool(0));
+    try std.testing.expect(!(try st.colBool(0)));
     try std.testing.expectEqual(StepResult.done, try st.step());
 }
 
@@ -332,8 +373,8 @@ test "stmt: bindOne supports OwnedText/OwnedBlob/EpochMillis/optional" {
     defer a.free(got_blob);
     try std.testing.expect(std.mem.eql(u8, &[_]u8{ 1, 2 }, got_blob));
 
-    try std.testing.expectEqual(@as(i64, 123), st.colInt(2));
-    try std.testing.expect(st.colIsNull(3));
+    try std.testing.expectEqual(@as(i64, 123), try st.colInt(2));
+    try std.testing.expect(try st.colIsNull(3));
     try std.testing.expectEqual(StepResult.done, try st.step());
 }
 
@@ -404,10 +445,25 @@ test "stmt: colTextBorrowed/colBlobBorrowed zero-copy reads" {
 
     try std.testing.expectEqual(StepResult.row, try st.step());
 
-    const t = st.colTextBorrowed(0).?;
+    const t = (try st.colTextBorrowed(0)).?;
     try std.testing.expectEqualStrings("abc", t);
-    const b = st.colBlobBorrowed(1).?;
+    const b = (try st.colBlobBorrowed(1)).?;
     try std.testing.expect(std.mem.eql(u8, &[_]u8{ 7, 8, 9 }, b));
-    try std.testing.expectEqual(@as(usize, 0), st.colTextBorrowed(2).?.len);
-    try std.testing.expect(st.colBlobBorrowed(3) == null);
+    try std.testing.expectEqual(@as(usize, 0), (try st.colTextBorrowed(2)).?.len);
+    try std.testing.expect((try st.colBlobBorrowed(3)) == null);
+}
+
+test "stmt: operations after deinit return StatementFinalized" {
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    var st = try Stmt.init(&db, "SELECT 1;");
+    st.deinit();
+
+    try std.testing.expectError(error.StatementFinalized, st.step());
+    try std.testing.expectError(error.StatementFinalized, st.reset());
+    try std.testing.expectError(error.StatementFinalized, st.bindInt(1, 1));
+    try std.testing.expectError(error.StatementFinalized, st.colInt(0));
+    try std.testing.expectError(error.StatementFinalized, st.colTextBorrowed(0));
 }

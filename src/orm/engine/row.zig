@@ -1,4 +1,5 @@
 const std = @import("std");
+const Db = @import("../../db/db.zig").Db;
 const Stmt = @import("../../db/stmt.zig").Stmt;
 const types = @import("../../core/types.zig");
 const meta = @import("../../core/meta.zig");
@@ -6,7 +7,7 @@ const errors = @import("../../core/errors.zig");
 
 pub fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: i32) errors.ZiteError!FieldT {
     if (FieldT == types.EpochMillis) {
-        return .{ .value = st.colInt(col) };
+        return .{ .value = try st.colInt(col) };
     }
     if (FieldT == types.OwnedText) {
         const owned = (try st.colTextOwned(allocator, col)) orelse return error.UnexpectedNull;
@@ -19,24 +20,23 @@ pub fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator,
 
     switch (@typeInfo(FieldT)) {
         .optional => |o| {
-            if (st.colIsNull(col)) return null;
+            if (try st.colIsNull(col)) return null;
             const Child = o.child;
             const v = try readValue(Child, st, allocator, col);
             return @as(FieldT, v);
         },
-        .bool => return st.colBool(col),
-        .int, .comptime_int => {
-            const v = st.colInt(col);
-            return @as(FieldT, @intCast(v));
+        .bool => return try st.colBool(col),
+        .int => {
+            const v = try st.colInt(col);
+            return std.math.cast(FieldT, v) orelse error.UnexpectedColumnType;
         },
-        .float, .comptime_float => {
-            const v = st.colDouble(col);
+        .float => {
+            const v = try st.colDouble(col);
             return @as(FieldT, @floatCast(v));
         },
         .@"enum" => {
-            const v = st.colInt(col);
-            const tag_ty = @typeInfo(FieldT).@"enum".tag_type;
-            return @enumFromInt(@as(tag_ty, @intCast(v)));
+            const v = try st.colInt(col);
+            return try intToEnumChecked(FieldT, v);
         },
         .pointer => return error.UnsupportedColumnType,
         else => return error.UnsupportedColumnType,
@@ -56,38 +56,54 @@ pub fn BorrowedFieldType(comptime FieldT: type) type {
 
 pub fn readValueBorrowed(comptime FieldT: type, st: *Stmt, col: i32) errors.ZiteError!BorrowedFieldType(FieldT) {
     if (FieldT == types.EpochMillis) {
-        return .{ .value = st.colInt(col) };
+        return .{ .value = try st.colInt(col) };
     }
     if (FieldT == types.OwnedText) {
-        return st.colTextBorrowed(col) orelse return error.UnexpectedNull;
+        return (try st.colTextBorrowed(col)) orelse return error.UnexpectedNull;
     }
     if (FieldT == types.OwnedBlob) {
-        return st.colBlobBorrowed(col) orelse return error.UnexpectedNull;
+        return (try st.colBlobBorrowed(col)) orelse return error.UnexpectedNull;
     }
 
     switch (@typeInfo(FieldT)) {
         .optional => |o| {
-            if (st.colIsNull(col)) return null;
+            if (try st.colIsNull(col)) return null;
             const Child = o.child;
             return try readValueBorrowed(Child, st, col);
         },
-        .bool => return st.colBool(col),
-        .int, .comptime_int => {
-            const v = st.colInt(col);
-            return @as(FieldT, @intCast(v));
+        .bool => return try st.colBool(col),
+        .int => {
+            const v = try st.colInt(col);
+            return std.math.cast(FieldT, v) orelse error.UnexpectedColumnType;
         },
-        .float, .comptime_float => {
-            const v = st.colDouble(col);
+        .float => {
+            const v = try st.colDouble(col);
             return @as(FieldT, @floatCast(v));
         },
         .@"enum" => {
-            const v = st.colInt(col);
-            const tag_ty = @typeInfo(FieldT).@"enum".tag_type;
-            return @enumFromInt(@as(tag_ty, @intCast(v)));
+            const v = try st.colInt(col);
+            return try intToEnumChecked(FieldT, v);
         },
         .pointer => return error.UnsupportedColumnType,
         else => return error.UnsupportedColumnType,
     }
+}
+
+fn intToEnumChecked(comptime E: type, v: i64) errors.ZiteError!E {
+    const einfo = @typeInfo(E).@"enum";
+    const Tag = einfo.tag_type;
+    const tag_value = std.math.cast(Tag, v) orelse return error.UnexpectedColumnType;
+
+    if (!einfo.is_exhaustive) {
+        return @enumFromInt(tag_value);
+    }
+
+    inline for (einfo.fields) |f| {
+        if (@intFromEnum(@field(E, f.name)) == tag_value) {
+            return @enumFromInt(tag_value);
+        }
+    }
+    return error.UnexpectedColumnType;
 }
 
 pub fn readStruct(comptime T: type, st: *Stmt, allocator: std.mem.Allocator) errors.ZiteError!T {
@@ -137,4 +153,34 @@ fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: any
         },
         else => {},
     }
+}
+
+test "row: int narrowing overflow returns UnexpectedColumnType" {
+    var db = try Db.open(std.testing.allocator, ":memory:");
+    defer db.deinit();
+
+    var st = try Stmt.init(&db, "SELECT 200;");
+    defer st.deinit();
+    try std.testing.expectEqual(.row, try st.step());
+
+    try std.testing.expectError(
+        error.UnexpectedColumnType,
+        readValue(i8, &st, std.testing.allocator, 0),
+    );
+}
+
+test "row: exhaustive enum conversion rejects invalid tags" {
+    const E = enum(i8) { a = 1, b = 2 };
+
+    var db = try Db.open(std.testing.allocator, ":memory:");
+    defer db.deinit();
+
+    var st = try Stmt.init(&db, "SELECT 3;");
+    defer st.deinit();
+    try std.testing.expectEqual(.row, try st.step());
+
+    try std.testing.expectError(
+        error.UnexpectedColumnType,
+        readValue(E, &st, std.testing.allocator, 0),
+    );
 }

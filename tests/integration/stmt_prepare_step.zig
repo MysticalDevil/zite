@@ -14,7 +14,7 @@ test "Stmt: prepare + step reads scalar result" {
 
     const r1 = try st.step();
     try std.testing.expectEqual(orm.StepResult.row, r1);
-    try std.testing.expectEqual(@as(i64, 1), st.colInt(0));
+    try std.testing.expectEqual(@as(i64, 1), try st.colInt(0));
 
     const r2 = try st.step();
     try std.testing.expectEqual(orm.StepResult.done, r2);

@@ -15,9 +15,9 @@ test "Stmt: colIsNull + colTextOwned" {
     const r = try st.step();
     try std.testing.expectEqual(orm.StepResult.row, r);
 
-    try std.testing.expect(st.colIsNull(0));
-    try std.testing.expect(!st.colIsNull(1));
-    try std.testing.expect(!st.colIsNull(2));
+    try std.testing.expect(try st.colIsNull(0));
+    try std.testing.expect(!(try st.colIsNull(1)));
+    try std.testing.expect(!(try st.colIsNull(2)));
 
     const t0 = try st.colTextOwned(a, 0);
     try std.testing.expect(t0 == null);

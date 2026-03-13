@@ -23,7 +23,7 @@ test "Stmt.bindAll: binds int/text/null and reads them back" {
     const r1 = try st.step();
     try std.testing.expectEqual(orm.StepResult.row, r1);
 
-    try std.testing.expectEqual(@as(i64, 42), st.colInt(0));
+    try std.testing.expectEqual(@as(i64, 42), try st.colInt(0));
 
     const b = (try st.colTextOwned(a, 1)).?;
     defer a.free(b);

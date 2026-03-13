@@ -45,6 +45,6 @@ test "mapper.insertMany: inserts multiple rows and supports empty input" {
     var st_count = try orm.Stmt.init(&db, "SELECT COUNT(*) FROM users;");
     defer st_count.deinit();
     try std.testing.expectEqual(orm.StepResult.row, try st_count.step());
-    try std.testing.expectEqual(@as(i64, 3), st_count.colInt(0));
+    try std.testing.expectEqual(@as(i64, 3), try st_count.colInt(0));
     try std.testing.expectEqual(orm.StepResult.done, try st_count.step());
 }

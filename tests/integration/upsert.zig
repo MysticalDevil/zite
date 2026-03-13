@@ -55,7 +55,7 @@ test "mapper.upsert: insert then update and no-op update keeps single row" {
     defer st_count.deinit();
     try st_count.bindInt(1, 1);
     try std.testing.expectEqual(orm.StepResult.row, try st_count.step());
-    try std.testing.expectEqual(@as(i64, 1), st_count.colInt(0));
+    try std.testing.expectEqual(@as(i64, 1), try st_count.colInt(0));
     try std.testing.expectEqual(orm.StepResult.done, try st_count.step());
 
     var st_name = try orm.Stmt.init(&db, "SELECT name, age FROM users WHERE id=?1;");
@@ -65,6 +65,6 @@ test "mapper.upsert: insert then update and no-op update keeps single row" {
     const name = (try st_name.colTextOwned(a, 0)).?;
     defer a.free(name);
     try std.testing.expectEqualStrings("alice2", name);
-    try std.testing.expectEqual(@as(i64, 30), st_name.colInt(1));
+    try std.testing.expectEqual(@as(i64, 30), try st_name.colInt(1));
     try std.testing.expectEqual(orm.StepResult.done, try st_name.step());
 }
