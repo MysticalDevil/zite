@@ -59,6 +59,7 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | Database | `zite.Db.open` / `db.deinit` | Opens/closes a SQLite connection. |
 | Statements | `zite.Stmt.init` / `st.deinit` | Prepared statement wrapper. |
 | ORM insert | `zite.mapper.insert` | Returns last insert rowid. |
+| ORM insert many | `zite.mapper.insertMany` | Inserts multiple rows and returns count. |
 | ORM update | `zite.mapper.update` | Returns rows changed. |
 | ORM upsert | `zite.mapper.upsert` | Returns `.inserted` or `.updated`. |
 | Find by id | `zite.mapper.findByIdOwned` | `OwnedRow(T)` or `null`. |
@@ -138,6 +139,7 @@ pub const Meta = .{
     .table = "users",
     .primary_key = "id",
     .skip_primary_key_on_insert = true,
+    .order_by = "\"id\" DESC",
     .rename = &.{
         .{ .field = "created_at", .column = "createdAt" },
     },
@@ -146,6 +148,41 @@ pub const Meta = .{
         &.{ "email" },
     },
 };
+```
+
+## Query Options
+
+`findMany` uses `Meta.order_by` as default ordering when present, and
+`findManyWithOptions` can override it explicitly.
+
+```zig
+const P = @TypeOf(.{});
+var rows = try zite.mapper.findManyWithOptions(
+    User,
+    P,
+    &db,
+    a,
+    "",
+    .{},
+    .{
+        .order_by = "\"id\" ASC",
+        .limit = 20,
+        .offset = 40,
+    },
+);
+defer rows.deinit();
+```
+
+## Bulk Insert
+
+Use `insertMany` to insert multiple rows with one prepared statement.
+
+```zig
+const inserted = try zite.mapper.insertMany(User, &db, &[_]User{
+    .{ .id = 0, .name = n1, .age = 20 },
+    .{ .id = 0, .name = n2, .age = null },
+});
+_ = inserted; // 2
 ```
 
 ## Owned Types
