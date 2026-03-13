@@ -94,10 +94,8 @@ pub const Db = struct {
 
     /// Records that a statement has been finalized.
     pub fn unregisterStmt(self: *Self) void {
-        self.active_stmts -= 1;
-        if (self.active_stmts < 0) {
-            std.log.warn("sqlite warning what=stmt_count_underflow", .{});
-            self.active_stmts = 0;
+        if (self.active_stmts > 0) {
+            self.active_stmts -= 1;
         }
     }
 };
@@ -132,6 +130,8 @@ test "db: register/unregister clamp underflow" {
     var db = try Db.open(std.testing.allocator, ":memory:");
     defer db.deinit();
 
+    db.registerStmt();
+    db.unregisterStmt();
     db.unregisterStmt();
     try std.testing.expectEqual(@as(i32, 0), db.active_stmts);
 }
