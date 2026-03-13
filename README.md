@@ -90,29 +90,38 @@ const User = struct {
 };
 
 pub fn main() !void {
-    const gpa = std.heap.page_allocator;
-    var db = try zite.Db.open(gpa, ":memory:");
+    var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
+    defer _ = debug_allocator.deinit();
+    const a = debug_allocator.allocator();
+
+    var db = try zite.Db.open(a, ":memory:");
     defer db.deinit();
 
-    const ddl = try zite.schema.createTableSqlFromMeta(gpa, User);
-    defer gpa.free(ddl);
+    const ddl = try zite.schema.createTableSqlFromMeta(a, User);
+    defer a.free(ddl);
     try db.exec(ddl);
 
     var user = User{
         .id = 1,
-        .name = try OwnedText.fromConst(gpa, "Alice"),
+        .name = try OwnedText.fromConst(a, "Alice"),
         .created_at = .{ .value = 1700000000000 },
     };
-    defer zite.mapper.freeOwnedRow(User, gpa, &user);
+    defer zite.mapper.freeOwnedRow(User, a, &user);
 
     _ = try zite.mapper.insert(User, &db, user);
 
-    if (try zite.mapper.findByIdOwned(User, &db, gpa, 1)) |row| {
+    if (try zite.mapper.findByIdOwned(User, &db, a, 1)) |row| {
         defer row.deinit();
         std.debug.print("name={s}\n", .{row.value.name.value});
     }
 }
 ```
+
+## Allocator Guidance (Zig 0.16)
+
+- Debug/test scenarios: prefer `std.heap.DebugAllocator(.{})`.
+- Throughput-oriented runtime paths: consider `std.heap.smp_allocator`.
+- Public APIs in this library accept `std.mem.Allocator`, so allocator policy stays with the caller.
 
 ## Meta Options
 
@@ -167,7 +176,6 @@ specific errors (busy, constraint, io, etc.) where possible.
 - `zig build test` runs unit tests.
 - `zig build itest` runs integration tests.
 - `zig build itest -Ddiag_enable_in_tests=true` enables sqlite diagnostics.
-- Tests use a simple runner (`tests/test_runner_simple.zig`) to avoid the server protocol.
 
 ## Zig Version
 
@@ -181,6 +189,9 @@ specific errors (busy, constraint, io, etc.) where possible.
 - `examples/orm_meta_options.zig`
 - `examples/stmt_bind_all.zig`
 - `examples/stmt_basic.zig`
+- `examples/process_init_full.zig` (`main(init: std.process.Init)`)
+- `examples/process_init_minimal.zig` (`main(init: std.process.Init.Minimal)`)
+- `examples/process_init_env.zig` (`init.environ_map`)
 
 ### Run Examples
 
@@ -188,7 +199,7 @@ The examples are standalone Zig files. Run them with a module mapping and
 link sqlite3:
 
 ```sh
-zig run examples/orm_basic.zig -M zite=src/root.zig -lc -lsqlite3
+zig run --dep zite -Mroot=examples/orm_basic.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
 
 See `examples/README.md` for more commands.

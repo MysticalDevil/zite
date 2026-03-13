@@ -8,37 +8,55 @@ with a module mapping and link sqlite3.
 **orm_basic.zig**  
 ORM mapping flow with `OwnedText`/`OwnedBlob`.
 ```sh
-zig run examples/orm_basic.zig -M zite=src/root.zig -lc -lsqlite3
+zig run --dep zite -Mroot=examples/orm_basic.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
 
 **orm_find_one.zig**  
 `findOne` with parameters.
 ```sh
-zig run examples/orm_find_one.zig -M zite=src/root.zig -lc -lsqlite3
+zig run --dep zite -Mroot=examples/orm_find_one.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
 
 **orm_find_many.zig**  
 `findMany` iteration.
 ```sh
-zig run examples/orm_find_many.zig -M zite=src/root.zig -lc -lsqlite3
+zig run --dep zite -Mroot=examples/orm_find_many.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
 
 **orm_meta_options.zig**  
 `Meta` options (`rename`, `skip`, `unique`).
 ```sh
-zig run examples/orm_meta_options.zig -M zite=src/root.zig -lc -lsqlite3
+zig run --dep zite -Mroot=examples/orm_meta_options.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
 
 **stmt_basic.zig**  
 Direct `Stmt` usage.
 ```sh
-zig run examples/stmt_basic.zig -M zite=src/root.zig -lc -lsqlite3
+zig run --dep zite -Mroot=examples/stmt_basic.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
 
 **stmt_bind_all.zig**  
 `bindAll` with typed params.
 ```sh
-zig run examples/stmt_bind_all.zig -M zite=src/root.zig -lc -lsqlite3
+zig run --dep zite -Mroot=examples/stmt_bind_all.zig -Mzite=src/root.zig -lc -lsqlite3
+```
+
+**process_init_full.zig**  
+`main(init: std.process.Init)` with `init.gpa` and `--name=...`.
+```sh
+zig run --dep zite -Mroot=examples/process_init_full.zig -Mzite=src/root.zig -lc -lsqlite3 -- --name=bob
+```
+
+**process_init_minimal.zig**  
+`main(init: std.process.Init.Minimal)` with manual allocator policy.
+```sh
+zig run --dep zite -Mroot=examples/process_init_minimal.zig -Mzite=src/root.zig -lc -lsqlite3 -- "hello-from-argv"
+```
+
+**process_init_env.zig**  
+`main(init: std.process.Init)` with `init.environ_map`.
+```sh
+ZITE_NOTE_BODY="from-env" zig run --dep zite -Mroot=examples/process_init_env.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
 
 ## Notes

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const zite = @import("zite");
 
@@ -15,8 +16,17 @@ const User = struct {
 };
 
 pub fn main() !void {
-    const gpa = std.heap.page_allocator;
-    const a: Allocator = gpa;
+    var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
+    defer {
+        if (builtin.mode == .Debug or builtin.mode == .ReleaseSafe) {
+            _ = debug_allocator.deinit();
+        }
+    }
+    _ = &debug_allocator;
+    const a: Allocator = switch (builtin.mode) {
+        .Debug, .ReleaseSafe => debug_allocator.allocator(),
+        .ReleaseFast, .ReleaseSmall => std.heap.smp_allocator,
+    };
 
     var db = try zite.Db.open(a, ":memory:");
     defer db.deinit();
