@@ -26,6 +26,77 @@ pub const Rename = struct {
     column: []const u8,
 };
 
+fn isSpace(ch: u8) bool {
+    return ch == ' ' or ch == '\t' or ch == '\n' or ch == '\r';
+}
+
+fn skipSpaces(s: []const u8, i: *usize) void {
+    while (i.* < s.len and isSpace(s[i.*])) : (i.* += 1) {}
+}
+
+fn parseQuotedIdent(s: []const u8, i: *usize) bool {
+    if (i.* >= s.len or s[i.*] != '"') {
+        return false;
+    }
+    i.* += 1;
+    while (i.* < s.len) {
+        if (s[i.*] != '"') {
+            i.* += 1;
+            continue;
+        }
+        if (i.* + 1 < s.len and s[i.* + 1] == '"') {
+            i.* += 2;
+            continue;
+        }
+        i.* += 1;
+        return true;
+    }
+    return false;
+}
+
+fn asciiEqIgnoreCase(a: u8, b: u8) bool {
+    if (a == b) return true;
+    const la = if (a >= 'A' and a <= 'Z') a + 32 else a;
+    const lb = if (b >= 'A' and b <= 'Z') b + 32 else b;
+    return la == lb;
+}
+
+fn parseKeywordIgnoreCase(s: []const u8, i: *usize, kw: []const u8) bool {
+    if (i.* + kw.len > s.len) return false;
+    for (kw, 0..) |k, off| {
+        if (!asciiEqIgnoreCase(s[i.* + off], k)) return false;
+    }
+    i.* += kw.len;
+    return true;
+}
+
+fn isValidOrderByClauseList(order_by: []const u8) bool {
+    var i: usize = 0;
+    skipSpaces(order_by, &i);
+    if (i == order_by.len) return true;
+
+    while (true) {
+        if (!parseQuotedIdent(order_by, &i)) return false;
+
+        // Require at least one whitespace between identifier and direction.
+        if (i >= order_by.len or !isSpace(order_by[i])) return false;
+        skipSpaces(order_by, &i);
+
+        const dir_start = i;
+        if (!parseKeywordIgnoreCase(order_by, &i, "ASC") and !parseKeywordIgnoreCase(order_by, &i, "DESC")) {
+            return false;
+        }
+        if (i == dir_start) return false;
+
+        skipSpaces(order_by, &i);
+        if (i == order_by.len) return true;
+        if (order_by[i] != ',') return false;
+        i += 1;
+        skipSpaces(order_by, &i);
+        if (i == order_by.len) return false;
+    }
+}
+
 /// Returns true when the field name matches the primary key.
 pub fn isPk(comptime name: []const u8, comptime pk: []const u8) bool {
     return std.mem.eql(u8, name, pk);
@@ -51,6 +122,15 @@ pub fn getMeta(comptime T: type) Meta {
     const rename: []const Rename = if (@hasField(MT, "rename")) m.rename else &.{};
     const unique: []const []const []const u8 = if (@hasField(MT, "unique")) m.unique else &.{};
     const order_by: []const u8 = if (@hasField(MT, "order_by")) m.order_by else "";
+
+    comptime {
+        if (!isValidOrderByClauseList(order_by)) {
+            @compileError(
+                "Type " ++ @typeName(T) ++ " Meta.order_by must be in form " ++
+                    "\"\\\"col\\\" ASC|DESC[, ...]\"",
+            );
+        }
+    }
 
     return .{
         .table = table,
@@ -234,4 +314,19 @@ test "meta: insertableCount/updateSetCount/hasPrimaryKeyField" {
     try std.testing.expect(hasPrimaryKeyField(S, m));
     try std.testing.expectEqual(@as(usize, 1), insertableCount(S, m));
     try std.testing.expectEqual(@as(usize, 1), updateSetCount(S, m));
+}
+
+test "meta: order_by validator accepts expected forms" {
+    try std.testing.expect(isValidOrderByClauseList(""));
+    try std.testing.expect(isValidOrderByClauseList("\"id\" DESC"));
+    try std.testing.expect(isValidOrderByClauseList("\"id\" ASC, \"created_at\" DESC"));
+    try std.testing.expect(isValidOrderByClauseList("  \"id\" ASC  ,  \"name\" DESC "));
+}
+
+test "meta: order_by validator rejects invalid forms" {
+    try std.testing.expect(!isValidOrderByClauseList("id DESC"));
+    try std.testing.expect(!isValidOrderByClauseList("\"id\""));
+    try std.testing.expect(!isValidOrderByClauseList("\"id\" DOWN"));
+    try std.testing.expect(!isValidOrderByClauseList("\"id\" ASC,"));
+    try std.testing.expect(!isValidOrderByClauseList("\"id\"ASC"));
 }
