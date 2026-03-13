@@ -23,7 +23,7 @@ fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     inline for (ti.@"struct".fields) |f| {
         if (comptime meta.isPk(f.name, m.primary_key)) return f.type;
     }
-    @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " + m.primary_key);
+    @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " ++ m.primary_key);
 }
 
 fn pkFieldValue(comptime T: type, entity: T, comptime m: meta.Meta) pkFieldType(T, m) {
@@ -35,7 +35,7 @@ fn pkFieldValue(comptime T: type, entity: T, comptime m: meta.Meta) pkFieldType(
             return @field(entity, f.name);
         }
     }
-    @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " + m.primary_key);
+    @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " ++ m.primary_key);
 }
 
 fn existsById(comptime T: type, db: *Db, id: pkFieldType(T, meta.getMeta(T))) errors.ZiteError!bool {
@@ -259,6 +259,9 @@ pub fn deleteById(comptime T: type, db: *Db, id: pkFieldType(T, meta.getMeta(T))
 /// params is a tuple/struct (e.g., .{ 123, "alice" }), bound to ?1..?N.
 pub fn deleteWhere(comptime T: type, comptime P: type, db: *Db, where_clause: []const u8, params: P) errors.ZiteError!i32 {
     if (@typeInfo(T) != .@"struct") @compileError("deleteWhere expects a struct type");
+    const trimmed = std.mem.trim(u8, where_clause, " \t\r\n");
+    if (trimmed.len == 0) return error.EmptyWhereClause;
+
     const sql = try engine.sql.buildDeleteWhereSql(T, db, where_clause);
     var st = try engine.sql.prepareOwnedSql(db, sql);
     defer st.deinit();
@@ -290,10 +293,13 @@ pub fn findById(comptime T: type, db: *Db, allocator: std.mem.Allocator, id: pkF
     const r = try st.step();
     if (r == .done) return null;
 
-    const out = try engine.row.readStruct(T, &st, allocator);
+    var out = try engine.row.readStruct(T, &st, allocator);
 
     const r2 = try st.step();
-    if (r2 != .done) return error.UnexpectedExtraRows;
+    if (r2 != .done) {
+        engine.row.freeOwnedRow(T, allocator, &out);
+        return error.UnexpectedExtraRows;
+    }
 
     return out;
 }
@@ -315,12 +321,6 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     const ti = @typeInfo(T);
     if (ti != .@"struct") @compileError("findOne expects a struct type");
 
-    const m = comptime meta.getMeta(T);
-    comptime {
-        if (meta.isSkipped(m.primary_key, m)) {
-            @compileError("Primary key field is marked as skipped: " ++ m.primary_key);
-        }
-    }
     const sql = try engine.sql.buildFindOneSql(T, db, where_clause);
     var st = try engine.sql.prepareOwnedSql(db, sql);
     defer st.deinit();
@@ -330,10 +330,13 @@ pub fn findOne(comptime T: type, comptime P: type, db: *Db, allocator: std.mem.A
     const r = try st.step();
     if (r == .done) return null;
 
-    const out = try engine.row.readStruct(T, &st, allocator);
+    var out = try engine.row.readStruct(T, &st, allocator);
 
     const r2 = try st.step();
-    if (r2 != .done) return error.UnexpectedExtraRows;
+    if (r2 != .done) {
+        engine.row.freeOwnedRow(T, allocator, &out);
+        return error.UnexpectedExtraRows;
+    }
 
     return out;
 }
@@ -549,6 +552,120 @@ test "mapper: findMany propagates OutOfMemory from SQL building" {
     try std.testing.expectError(
         error.OutOfMemory,
         findMany(Row, P, &db, a, "\"id\">?1", .{@as(i64, 0)}),
+    );
+}
+
+test "mapper: update propagates OutOfMemory from SQL building" {
+    const Row = struct {
+        id: i64,
+        name: types.OwnedText,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+        };
+    };
+
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+
+    var name1 = try types.OwnedText.fromConst(a, "alice");
+    defer name1.deinit(a);
+    const id = try insert(Row, &db, .{ .id = 0, .name = name1 });
+
+    var name2 = try types.OwnedText.fromConst(a, "alice2");
+    defer name2.deinit(a);
+
+    var failing_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    db.allocator = failing_state.allocator();
+
+    try std.testing.expectError(error.OutOfMemory, update(Row, &db, .{
+        .id = id,
+        .name = name2,
+    }));
+}
+
+test "mapper: deleteById propagates OutOfMemory from SQL building" {
+    const Row = struct {
+        id: i64,
+        name: types.OwnedText,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+        };
+    };
+
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+
+    var name = try types.OwnedText.fromConst(a, "alice");
+    defer name.deinit(a);
+    const id = try insert(Row, &db, .{ .id = 0, .name = name });
+
+    var failing_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    db.allocator = failing_state.allocator();
+
+    try std.testing.expectError(error.OutOfMemory, deleteById(Row, &db, id));
+}
+
+test "mapper: deleteWhere propagates OutOfMemory from SQL building" {
+    const Row = struct {
+        id: i64,
+        name: types.OwnedText,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = true,
+        };
+    };
+
+    const a = std.testing.allocator;
+    var db = try Db.open(a, ":memory:");
+    defer db.deinit();
+
+    try db.exec(
+        \\CREATE TABLE users(
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
+        \\  name TEXT NOT NULL
+        \\);
+    );
+
+    var name = try types.OwnedText.fromConst(a, "alice");
+    defer name.deinit(a);
+    _ = try insert(Row, &db, .{ .id = 0, .name = name });
+
+    var failing_state = std.testing.FailingAllocator.init(std.testing.allocator, .{
+        .fail_index = 0,
+    });
+    db.allocator = failing_state.allocator();
+
+    try std.testing.expectError(
+        error.OutOfMemory,
+        deleteWhere(Row, @TypeOf(.{@as(i64, 0)}), &db, "\"id\">?1", .{@as(i64, 0)}),
     );
 }
 

@@ -159,7 +159,7 @@ pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) er
                 .int, .comptime_int => true,
                 else => false,
             };
-            if (is_int) {
+            if (is_int and m.skip_primary_key_on_insert) {
                 try b.lit(" AUTOINCREMENT");
             }
         } else if (!isOptional(f.type)) {
@@ -296,8 +296,8 @@ test "createTableSqlFromMeta: rename, skip, unique" {
             .table = "users",
             .primary_key = "id",
             .skip = .{"temp"},
-            .rename = .{ .{ .field = "name", .column = "full_name" } },
-            .unique = .{ .{"name"} },
+            .rename = .{.{ .field = "name", .column = "full_name" }},
+            .unique = .{.{"name"}},
         };
     };
 
@@ -312,4 +312,25 @@ test "createTableSqlFromMeta: rename, skip, unique" {
         \\);
     ;
     try std.testing.expectEqualStrings(expected, sql);
+}
+
+test "createTableSqlFromMeta: no autoincrement when Meta keeps PK on insert" {
+    const a = std.testing.allocator;
+
+    const User = struct {
+        id: i64,
+        name: types.OwnedText,
+
+        pub const Meta = .{
+            .table = "users",
+            .primary_key = "id",
+            .skip_primary_key_on_insert = false,
+        };
+    };
+
+    const sql = try createTableSqlFromMeta(a, User);
+    defer a.free(sql);
+
+    try std.testing.expect(std.mem.indexOf(u8, sql, "AUTOINCREMENT") == null);
+    try std.testing.expect(std.mem.indexOf(u8, sql, "\"id\" INTEGER PRIMARY KEY") != null);
 }

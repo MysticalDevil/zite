@@ -4,6 +4,10 @@ pub const raw = @import("raw/mod.zig");
 pub const errors = @import("core/errors.zig");
 /// Database connection wrapper.
 pub const Db = @import("db/db.zig").Db;
+/// Transaction mode enum for Db.beginTx().
+pub const TxMode = Db.TxMode;
+/// Transaction handle returned by Db.beginTx().
+pub const Tx = Db.Tx;
 /// Prepared statement wrapper.
 pub const Stmt = @import("db/stmt.zig").Stmt;
 /// Statement step result enum.

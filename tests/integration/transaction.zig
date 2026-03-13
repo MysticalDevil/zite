@@ -2,6 +2,13 @@ const std = @import("std");
 const orm = @import("zite");
 const helpers = @import("helpers.zig");
 
+test "tx types are exposed from root and orm" {
+    const m1: orm.TxMode = .deferred;
+    _ = m1;
+    const m2: orm.orm.TxMode = .immediate;
+    _ = m2;
+}
+
 const User = struct {
     id: i64,
     name: orm.types.OwnedText,
@@ -58,6 +65,27 @@ test "orm transaction: rollback drops rows" {
         _ = try repo.insert(.{ .id = 0, .name = n });
         // no commit
     }
+
+    const found = try repo.findByIdOwned(@as(i64, 1));
+    try std.testing.expect(found == null);
+}
+
+test "orm transaction: explicit rollback drops rows" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var tx = try repo.beginTx(.deferred);
+    defer tx.deinit();
+    var n = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n });
+    try tx.rollback();
 
     const found = try repo.findByIdOwned(@as(i64, 1));
     try std.testing.expect(found == null);

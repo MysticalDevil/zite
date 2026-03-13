@@ -56,3 +56,26 @@ test "mapper.findOne: where + params" {
     const none = try repo.findOneRaw("\"name\"=?1", .{nobody});
     try std.testing.expect(none == null);
 }
+
+test "mapper.findOne: returns UnexpectedExtraRows for multi-match query" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer name1.deinit(a);
+    var name2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer name2.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = name1, .age = null, .created_at = 1 });
+    _ = try repo.insert(.{ .id = 0, .name = name2, .age = null, .created_at = 2 });
+
+    try std.testing.expectError(
+        error.UnexpectedExtraRows,
+        repo.findOneRaw("1=1 --", .{}),
+    );
+}

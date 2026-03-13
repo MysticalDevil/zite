@@ -85,7 +85,7 @@ test "mapper.deleteWhere: deletes matching rows" {
     }
 }
 
-test "mapper.deleteWhere: no clause deletes all" {
+test "mapper.deleteWhere: empty clause is rejected" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -103,6 +103,5 @@ test "mapper.deleteWhere: no clause deletes all" {
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = null });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = null });
 
-    const changed = try repo.deleteWhereRaw("", .{});
-    try std.testing.expectEqual(@as(i32, 2), changed);
+    try std.testing.expectError(error.EmptyWhereClause, repo.deleteWhereRaw("", .{}));
 }
