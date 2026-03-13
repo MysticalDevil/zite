@@ -59,6 +59,7 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | Database | `zite.Db.open` / `db.deinit` | Opens/closes a SQLite connection. |
 | Transactions (types) | `zite.TxMode`, `zite.Tx` | Public transaction mode/handle types. |
 | Statements | `zite.Stmt.init` / `st.deinit` | Prepared statement wrapper. |
+| Async execution | `zite.AsyncPool.init` | Experimental `std.Io`-based execution layer. |
 | ORM repository | `zite.orm.repository(User, &db, a)` | Creates a typed repository for `User`. |
 | ORM insert | `repo.insert` | Returns last insert rowid. |
 | ORM insert many | `repo.insertMany` | Inserts multiple rows and returns count. |
@@ -73,6 +74,7 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 ## API Stability
 
 - Stable: `Db`, `Stmt`, `orm`, `schema`, `types`, `errors`.
+- Experimental: `AsyncPool` / `async_pool`. Built for Zig `0.16/master` `std.Io`; API may change.
 - Advanced/Low-level: `raw`, `sqlutil`, `meta`. These are exposed for power users
   but may change when internals evolve.
 - Internal: `src/orm/engine.zig` and `src/orm/engine/*` are implementation details used by `orm` and are
@@ -205,6 +207,32 @@ This is especially important when `Meta.skip_primary_key_on_insert = true`,
 because that compatibility path still uses an existence check before `INSERT`.
 That path is only safe for serial callers; concurrent access, even through a
 shared connection, can still observe a race.
+
+## AsyncPool
+
+`AsyncPool` is an experimental execution layer for Zig `0.16/master`. It uses
+`std.Io.concurrent` to run blocking sqlite work on independent connections.
+
+Important constraints:
+- It does not make sqlite itself non-blocking; it schedules blocking work.
+- Each task opens its own `Db`.
+- Borrowed results are not allowed across the async boundary.
+- `AsyncPool.findOne` returns an owned value; free it with `zite.AsyncPool.freeOwnedRow`.
+
+```zig
+pub fn main(init: std.process.Init) !void {
+    var pool = try zite.AsyncPool.init(init.gpa, "app.sqlite", .{});
+    defer pool.deinit();
+
+    _ = try pool.insert(init.io, User, .{ .id = 1, .name = name });
+
+    if (try pool.findByIdOwned(init.io, User, init.gpa, @as(i64, 1))) |row| {
+        var owned = row;
+        defer owned.deinit();
+        std.debug.print("{s}\n", .{owned.value.name.value});
+    }
+}
+```
 
 ## Owned Types
 

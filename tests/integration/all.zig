@@ -20,4 +20,5 @@ comptime {
     _ = @import("delete.zig");
     _ = @import("upsert.zig");
     _ = @import("transaction.zig");
+    _ = @import("async_pool.zig");
 }

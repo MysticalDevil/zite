@@ -44,6 +44,12 @@ zig run --dep zite -Mroot=examples/stmt_basic.zig -Mzite=src/root.zig -lc -lsqli
 zig run --dep zite -Mroot=examples/stmt_bind_all.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
 
+**async_pool_basic.zig**  
+Experimental `AsyncPool` usage with `main(init: std.process.Init)` and `init.io`.
+```sh
+zig run --dep zite -Mroot=examples/async_pool_basic.zig -Mzite=src/root.zig -lc -lsqlite3
+```
+
 **process_init_full.zig**  
 `main(init: std.process.Init)` with `init.gpa` and `--name=...`.
 ```sh
@@ -65,6 +71,7 @@ ZITE_NOTE_BODY="from-env" zig run --dep zite -Mroot=examples/process_init_env.zi
 ## Notes
 
 - SQLite must be available on the system (`sqlite3` headers and library).
-- Examples use `:memory:` databases for convenience.
+- Most examples use `:memory:` databases for convenience; `async_pool_basic.zig` uses a file-backed database.
 - Transactions support both `commit()` and explicit `rollback()`.
 - `deleteWhereRaw` requires a non-empty WHERE clause.
+- `AsyncPool` is experimental and requires Zig `0.16/master` `std.Io`.

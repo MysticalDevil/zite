@@ -14,6 +14,10 @@ pub const Stmt = @import("db/stmt.zig").Stmt;
 pub const StepResult = @import("db/stmt.zig").StepResult;
 /// Diagnostics helpers.
 pub const diag = @import("db/diag.zig");
+/// Experimental async execution layer built on Zig 0.16 `std.Io`.
+pub const async_pool = @import("async_pool.zig");
+/// Experimental async pool handle.
+pub const AsyncPool = async_pool.AsyncPool;
 
 /// ORM repository/query API.
 pub const orm = @import("orm/orm.zig");

@@ -50,6 +50,8 @@ pub const ZiteError = error{
     BorrowedRowStale,
     /// Statement bookkeeping underflowed (double-finalize or mismatched lifecycle).
     StatementCountUnderflow,
+    /// Async/concurrent execution is unavailable in the selected Io implementation.
+    ConcurrencyUnavailable,
     /// bindAll expects a struct/tuple.
     BindAllExpectedStructOrTuple,
     /// WHERE clause must not be empty for destructive operations.
