@@ -66,3 +66,5 @@ ZITE_NOTE_BODY="from-env" zig run --dep zite -Mroot=examples/process_init_env.zi
 
 - SQLite must be available on the system (`sqlite3` headers and library).
 - Examples use `:memory:` databases for convenience.
+- Transactions support both `commit()` and explicit `rollback()`.
+- `deleteWhereRaw` requires a non-empty WHERE clause.

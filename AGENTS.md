@@ -12,7 +12,7 @@
 - `examples/` contains runnable usage samples.
 
 ## API Stability & Boundaries
-- Stable APIs: `Db`, `Stmt`, `orm`, `schema`, `types`, `errors`.
+- Stable APIs: `Db`, `TxMode`, `Tx`, `Stmt`, `orm`, `schema`, `types`, `errors`.
 - Advanced APIs: `raw`, `sqlutil`, `meta` are exposed for power users and may change.
 - Internal APIs: `src/orm/engine.zig` and `src/orm/engine/*` are implementation details and not part of the public API contract.
 
@@ -27,6 +27,7 @@
   - Types/structs: `PascalCase`
   - Functions/vars: `lower_snake_case`
   - Files: `lower_snake_case.zig` (e.g., `find_one.zig`)
+- Do not use single-line conditional statements like `if (cond) action;`; always use block form with braces.
 - Keep modules focused: raw bindings in `src/raw/`, ORM in `src/orm/`, DB wrappers in `src/db/`.
 
 ## Testing Guidelines

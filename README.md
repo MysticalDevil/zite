@@ -57,6 +57,7 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | Area | Entry Point | Notes |
 | --- | --- | --- |
 | Database | `zite.Db.open` / `db.deinit` | Opens/closes a SQLite connection. |
+| Transactions (types) | `zite.TxMode`, `zite.Tx` | Public transaction mode/handle types. |
 | Statements | `zite.Stmt.init` / `st.deinit` | Prepared statement wrapper. |
 | ORM repository | `zite.orm.repository(User, &db, a)` | Creates a typed repository for `User`. |
 | ORM insert | `repo.insert` | Returns last insert rowid. |
@@ -65,7 +66,7 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | ORM upsert | `repo.upsert` | Returns `.inserted` or `.updated`. |
 | Query builder | `repo.query()` | Builder with `whereEq/whereRaw/orderBy/limit/offset`. |
 | Find by id | `repo.findByIdOwned` | `OwnedRow(T)` or `null`. |
-| Transactions | `repo.beginTx(.deferred)` | `commit()` or automatic rollback on `deinit()`. |
+| Transactions | `repo.beginTx(.deferred)` | `commit()` / `rollback()` or automatic rollback on `deinit()`. |
 | Schema | `zite.schema.createTableSqlFromMeta` | CREATE TABLE from `Meta`. |
 | Errors | `zite.errors.ZiteError` | Unified error set. |
 
@@ -141,6 +142,8 @@ pub fn main() !void {
 pub const Meta = .{
     .table = "users",
     .primary_key = "id",
+    // true => PK omitted from INSERT and CREATE TABLE emits AUTOINCREMENT for integer PKs.
+    // false => PK must be provided by caller and CREATE TABLE omits AUTOINCREMENT.
     .skip_primary_key_on_insert = true,
     .order_by = "\"id\" DESC",
     .rename = &.{
@@ -160,7 +163,7 @@ default order when builder order is not explicitly set.
 
 ```zig
 var q = repo.query();
-try q.whereRaw("", .{});
+try q.whereEq("id", @as(i64, 1));
 try q.orderBy("id", .asc);
 q.setLimit(20);
 q.setOffset(40);
@@ -188,6 +191,7 @@ defer tx.deinit(); // auto rollback if not committed
 
 _ = try repo.insert(.{ .id = 0, .name = n1, .age = 20 });
 try tx.commit();
+// try tx.rollback(); // explicit rollback is also supported
 ```
 
 ## Owned Types
@@ -222,6 +226,11 @@ operations return `error.StatementFinalized`.
 All public APIs return `errors.ZiteError`. SQLite return codes are mapped to
 specific errors (busy, constraint, io, etc.) where possible.
 
+Notable behavior-specific errors:
+- `error.StatementFinalized`: statement used after `deinit()`/`finalize()`.
+- `error.EmptyWhereClause`: `deleteWhereRaw` called with empty WHERE.
+- `error.UnexpectedExtraRows`: `findOne`/`findById` observed more rows than expected.
+
 ## Tests
 
 - `zig build test` runs unit tests.
@@ -253,6 +262,10 @@ zig run --dep zite -Mroot=examples/orm_basic.zig -Mzite=src/root.zig -lc -lsqlit
 ```
 
 See `examples/README.md` for more commands.
+
+## Architecture
+
+- Detailed architecture doc: `docs/architecture.md`
 
 ## Project Layout
 
