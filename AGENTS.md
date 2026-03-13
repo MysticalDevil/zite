@@ -5,14 +5,14 @@
 - `src/raw/` contains low-level sqlite3 bindings.
 - `src/db/` contains the DB and statement wrappers.
 - `src/core/` contains shared types, meta, and SQL utilities.
-- `src/orm/` contains mapper and schema helpers.
-- `src/orm/engine.zig` is the internal entrypoint for mapper engine helpers.
-- `src/orm/engine/` contains internal mapper execution helpers (SQL build/read/exec).
+- `src/orm/` contains ORM repository/query and schema helpers.
+- `src/orm/engine.zig` is the internal entrypoint for ORM engine helpers.
+- `src/orm/engine/` contains internal ORM execution helpers (SQL build/read/exec).
 - `tests/` contains integration tests. `tests/itest.zig` is the test entry module and includes files from `tests/integration/`.
 - `examples/` contains runnable usage samples.
 
 ## API Stability & Boundaries
-- Stable APIs: `Db`, `Stmt`, `mapper`, `schema`, `types`, `errors`.
+- Stable APIs: `Db`, `Stmt`, `orm`, `schema`, `types`, `errors`.
 - Advanced APIs: `raw`, `sqlutil`, `meta` are exposed for power users and may change.
 - Internal APIs: `src/orm/engine.zig` and `src/orm/engine/*` are implementation details and not part of the public API contract.
 

@@ -58,23 +58,22 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | --- | --- | --- |
 | Database | `zite.Db.open` / `db.deinit` | Opens/closes a SQLite connection. |
 | Statements | `zite.Stmt.init` / `st.deinit` | Prepared statement wrapper. |
-| ORM insert | `zite.mapper.insert` | Returns last insert rowid. |
-| ORM insert many | `zite.mapper.insertMany` | Inserts multiple rows and returns count. |
-| ORM update | `zite.mapper.update` | Returns rows changed. |
-| ORM upsert | `zite.mapper.upsert` | Returns `.inserted` or `.updated`. |
-| Find by id | `zite.mapper.findByIdOwned` | `OwnedRow(T)` or `null`. |
-| Find one | `zite.mapper.findOne` | WHERE + params, `T` or `null`. |
-| ORM find many | `zite.mapper.findMany` | Iterates rows with `Rows(T)`. |
-| ORM find many opts | `zite.mapper.findManyWithOptions` | Adds `order_by` / `limit` / `offset`. |
+| ORM repository | `zite.orm.repository(User, &db, a)` | Creates a typed repository for `User`. |
+| ORM insert | `repo.insert` | Returns last insert rowid. |
+| ORM insert many | `repo.insertMany` | Inserts multiple rows and returns count. |
+| ORM update | `repo.update` | Returns rows changed. |
+| ORM upsert | `repo.upsert` | Returns `.inserted` or `.updated`. |
+| Query builder | `repo.query()` | Builder with `whereEq/whereRaw/orderBy/limit/offset`. |
+| Find by id | `repo.findByIdOwned` | `OwnedRow(T)` or `null`. |
 | Schema | `zite.schema.createTableSqlFromMeta` | CREATE TABLE from `Meta`. |
 | Errors | `zite.errors.ZiteError` | Unified error set. |
 
 ## API Stability
 
-- Stable: `Db`, `Stmt`, `mapper`, `schema`, `types`, `errors`.
+- Stable: `Db`, `Stmt`, `orm`, `schema`, `types`, `errors`.
 - Advanced/Low-level: `raw`, `sqlutil`, `meta`. These are exposed for power users
   but may change when internals evolve.
-- Internal: `src/orm/engine.zig` and `src/orm/engine/*` are implementation details used by `mapper` and are
+- Internal: `src/orm/engine.zig` and `src/orm/engine/*` are implementation details used by `orm` and are
   not part of the public API contract.
 
 ## Quick Start (ORM)
@@ -104,6 +103,7 @@ pub fn main() !void {
 
     var db = try zite.Db.open(a, ":memory:");
     defer db.deinit();
+    var repo = zite.orm.repository(User, &db, a);
 
     const ddl = try zite.schema.createTableSqlFromMeta(a, User);
     defer a.free(ddl);
@@ -114,11 +114,11 @@ pub fn main() !void {
         .name = try OwnedText.fromConst(a, "Alice"),
         .created_at = .{ .value = 1700000000000 },
     };
-    defer zite.mapper.freeOwnedRow(User, a, &user);
+    defer repo.freeOwnedRow(&user);
 
-    _ = try zite.mapper.insert(User, &db, user);
+    _ = try repo.insert(user);
 
-    if (try zite.mapper.findByIdOwned(User, &db, a, 1)) |row| {
+    if (try repo.findByIdOwned(@as(i64, 1))) |row| {
         var owned = row;
         defer owned.deinit();
         std.debug.print("name={s}\n", .{owned.value.name.value});
@@ -154,24 +154,16 @@ pub const Meta = .{
 
 ## Query Options
 
-`findMany` uses `Meta.order_by` as default ordering when present, and
-`findManyWithOptions` can override it explicitly.
+Use `repo.query()` for typed query building. `Meta.order_by` is used as the
+default order when builder order is not explicitly set.
 
 ```zig
-const P = @TypeOf(.{});
-var rows = try zite.mapper.findManyWithOptions(
-    User,
-    P,
-    &db,
-    a,
-    "",
-    .{},
-    .{
-        .order_by = "\"id\" ASC",
-        .limit = 20,
-        .offset = 40,
-    },
-);
+var q = repo.query();
+try q.whereRaw("", .{});
+try q.orderBy("id", .asc);
+q.setLimit(20);
+q.setOffset(40);
+var rows = try q.iterateOwned();
 defer rows.deinit();
 ```
 
@@ -180,7 +172,7 @@ defer rows.deinit();
 Use `insertMany` to insert multiple rows with one prepared statement.
 
 ```zig
-const inserted = try zite.mapper.insertMany(User, &db, &[_]User{
+const inserted = try repo.insertMany(&[_]User{
     .{ .id = 0, .name = n1, .age = 20 },
     .{ .id = 0, .name = n2, .age = null },
 });
@@ -254,7 +246,7 @@ See `examples/README.md` for more commands.
 - `src/raw/` low-level sqlite3 bindings.
 - `src/db/` DB/statement wrappers.
 - `src/core/` types/meta/sql helpers.
-- `src/orm/` mapper and schema.
+- `src/orm/` repository/query ORM and schema.
 - `src/orm/engine.zig` internal engine namespace entrypoint.
-- `src/orm/engine/` internal mapper engine (SQL assembly, row decoding, exec helpers).
+- `src/orm/engine/` internal ORM engine (SQL assembly, row decoding, exec helpers).
 - `tests/` integration tests.
