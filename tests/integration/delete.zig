@@ -13,7 +13,7 @@ const User = struct {
 };
 
 test "mapper.deleteById: removes record by primary key" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
@@ -35,7 +35,7 @@ test "mapper.deleteById: removes record by primary key" {
 }
 
 test "mapper.deleteById: returns 0 when id not found" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
@@ -49,7 +49,7 @@ test "mapper.deleteById: returns 0 when id not found" {
 }
 
 test "mapper.deleteWhere: deletes matching rows" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
@@ -84,7 +84,7 @@ test "mapper.deleteWhere: deletes matching rows" {
 }
 
 test "mapper.deleteWhere: no clause deletes all" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

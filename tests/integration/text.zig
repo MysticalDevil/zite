@@ -14,7 +14,7 @@ const Note = struct {
 };
 
 test "mapper: text round trip with types.OwnedText" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

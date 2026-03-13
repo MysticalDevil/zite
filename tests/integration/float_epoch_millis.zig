@@ -16,7 +16,7 @@ const Sample = struct {
 };
 
 test "float + EpochMillis: insert -> findById -> findOne" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

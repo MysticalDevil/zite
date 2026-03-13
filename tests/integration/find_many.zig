@@ -16,7 +16,7 @@ const User = struct {
 };
 
 test "mapper.findMany: ioterate rows and free owned fields" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

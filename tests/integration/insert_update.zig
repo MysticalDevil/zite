@@ -14,7 +14,7 @@ const User = struct {
 };
 
 test "mapper.insert + mapper.update: roundtrip" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

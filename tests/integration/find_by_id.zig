@@ -20,7 +20,7 @@ fn freeUser(a: std.mem.Allocator, u: *User) void {
 }
 
 test "mapper.findById: insert -> findById -> update -> findById" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

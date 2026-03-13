@@ -15,7 +15,7 @@ const User = struct {
 };
 
 test "owned: findByIdOwned and findManyOwned free via deinit" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer {
         const chk = gpa.deinit();
         std.testing.expect(chk == .ok) catch unreachable;
@@ -57,7 +57,7 @@ test "owned: findByIdOwned and findManyOwned free via deinit" {
 }
 
 test "owned: empty text is released without leaks" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer {
         const chk = gpa.deinit();
         std.testing.expect(chk == .ok) catch unreachable;

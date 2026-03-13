@@ -10,7 +10,7 @@ const User = struct {
 };
 
 test "prepare_v2 + step: verify users table exists via sqlite_master" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

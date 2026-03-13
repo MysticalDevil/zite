@@ -2,7 +2,7 @@ const std = @import("std");
 const orm = @import("zite");
 
 test "Stmt.bindAll: binds int/text/null and reads them back" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

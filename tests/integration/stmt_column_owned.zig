@@ -2,7 +2,7 @@ const std = @import("std");
 const orm = @import("zite");
 
 test "Stmt: colIsNull + colTextOwned" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

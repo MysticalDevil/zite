@@ -14,7 +14,7 @@ const Doc = struct {
 };
 
 test "mapper: blob round trip" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

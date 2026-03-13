@@ -9,7 +9,7 @@ fn containsAny(hay: []const u8, needles: []const []const u8) bool {
 }
 
 test "errmsg: exec syntax error provides message" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
@@ -25,7 +25,7 @@ test "errmsg: exec syntax error provides message" {
 }
 
 test "errmsg: step runtime error provides message" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
@@ -65,7 +65,7 @@ test "errmsg: step runtime error provides message" {
 }
 
 test "errmsg: bind out-of-range provides message" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 

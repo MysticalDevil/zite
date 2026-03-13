@@ -2,7 +2,7 @@ const std = @import("std");
 const orm = @import("zite");
 
 test "expected error: Db.exec invalid SQL returns SqliteExecFailed" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
@@ -13,7 +13,7 @@ test "expected error: Db.exec invalid SQL returns SqliteExecFailed" {
 }
 
 test "expected error: Stmt.init invalid SQL retures SqlitePrepareFailed" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
@@ -24,7 +24,7 @@ test "expected error: Stmt.init invalid SQL retures SqlitePrepareFailed" {
 }
 
 test "expected error: Stmt.bindOne out-of-range index returns SqliteRange" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
@@ -38,7 +38,7 @@ test "expected error: Stmt.bindOne out-of-range index returns SqliteRange" {
 }
 
 test "expected error: Stmt.step SQL runtime error returns SqliteConstraint" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
@@ -72,7 +72,7 @@ test "expected error: Stmt.step SQL runtime error returns SqliteConstraint" {
 }
 
 test "expected error: operations after close return SqliteMisuse" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
