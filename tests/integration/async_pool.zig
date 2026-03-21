@@ -86,7 +86,7 @@ fn findUserNameTask(args: struct {
     io: std.Io,
     allocator: std.mem.Allocator,
     id: i64,
-}) zite.errors.ZiteError![]u8 {
+}) zite.errors.AsyncOrmError![]u8 {
     const row_opt = try args.pool.findByIdOwned(args.io, User, args.allocator, args.id);
     var row = row_opt orelse return error.UnexpectedNull;
     defer row.deinit();

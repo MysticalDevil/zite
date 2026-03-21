@@ -1,6 +1,11 @@
 const std = @import("std");
 const orm = @import("zite");
 
+fn returnType(comptime function: anytype) type {
+    return @typeInfo(@TypeOf(function)).@"fn".return_type orelse
+        @compileError("function must have an explicit return type");
+}
+
 test "expected error: Db.exec invalid SQL returns SqliteExecFailed" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
@@ -82,4 +87,17 @@ test "expected error: operations after close return SqliteMisuse" {
 
     try std.testing.expectError(error.SqliteMisuse, db.exec("SELECT 1;"));
     try std.testing.expectError(error.SqliteMisuse, orm.Stmt.init(&db, "SELECT 1;"));
+}
+
+test "error contract: public APIs expose layered error sets" {
+    try std.testing.expect(returnType(orm.Db.open) == orm.errors.DbError!orm.Db);
+    try std.testing.expect(returnType(orm.Stmt.init) == orm.errors.StmtError!orm.Stmt);
+    try std.testing.expect(returnType(orm.schema.createTableSqlFromMeta) == orm.errors.SchemaError![]u8);
+}
+
+test "error contract: deprecated aggregate alias remains usable" {
+    const compat_exec: orm.errors.ZiteError = error.SqliteExecFailed;
+    const compat_null: orm.errors.ZiteError = error.UnexpectedNull;
+    try std.testing.expect(compat_exec == error.SqliteExecFailed);
+    try std.testing.expect(compat_null == error.UnexpectedNull);
 }
