@@ -20,6 +20,12 @@ zig run --dep zite -Mroot=examples/orm_basic.zig -Mzite=src/root.zig -lc -lsqlit
 zig run --dep zite -Mroot=examples/orm_find_one.zig -Mzite=src/root.zig -lc -lsqlite3
 ```
 
+**orm_raw_sql_guard.zig**  
+Guarded raw SQL (`whereSql`/`findOneSql`) vs explicit unsafe variants.
+```sh
+zig run --dep zite -Mroot=examples/orm_raw_sql_guard.zig -Mzite=src/root.zig -lc -lsqlite3
+```
+
 **orm_find_many.zig**  
 `findMany` iteration.
 ```sh

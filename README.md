@@ -65,7 +65,7 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | ORM insert many | `repo.insertMany` | Inserts multiple rows and returns count. |
 | ORM update | `repo.update` | Returns rows changed. |
 | ORM upsert | `repo.upsert` | Returns `.inserted` or `.updated`. |
-| Query builder | `repo.query()` | Builder with `whereEq/whereRaw/orderBy/limit/offset`. |
+| Query builder | `repo.query()` | Builder with `whereEq/whereSql/orderBy/limit/offset`. |
 | Find by id | `repo.findByIdOwned` | `OwnedRow(T)` or `null`. |
 | Row handle | `repo.findByIdHandle` | `RowHandle(T)` for single-row zero-copy access. |
 | Row cursor | `q.iterateViews()` | `RowCursor(T)` for zero-copy row views. |
@@ -165,14 +165,19 @@ pub const Meta = .{
 Use `repo.query()` for typed query building. `Meta.order_by` is used as the
 default order when builder order is not explicitly set.
 
-`whereRaw` rebases placeholders relative to the current query parameter count.
+`whereSql` rebases placeholders relative to the current query parameter count.
 That means `?1`, `?2`, or bare `?` inside the raw fragment are local to that
 fragment, even when mixed with earlier `whereEq` calls.
+
+Guarded raw APIs (`whereSql`, `findOneSql`, `findOneHandleSql`) reject unsafe
+fragments such as statement separators, SQL comments, and statement-level
+keywords. For trusted advanced fragments, use the explicit unsafe variants:
+`whereSqlUnsafe`, `findOneSqlUnsafe`, `findOneHandleSqlUnsafe`.
 
 ```zig
 var q = repo.query();
 try q.whereEq("id", @as(i64, 1));
-try q.whereRaw("\"name\"=?1", .{"alice"});
+try q.whereSql("\"name\"=?1", .{"alice"});
 try q.orderBy("id", .asc);
 q.setLimit(20);
 q.setOffset(40);
@@ -186,7 +191,7 @@ Use row views when you want zero-copy access to the current statement row.
 
 - `q.iterateViews()` returns a `RowCursor(T)`.
 - `cursor.next()` returns a `RowView(T)` for the current row.
-- `repo.findByIdHandle(...)` and `repo.findOneHandleRaw(...)` return a `RowHandle(T)` for single-row access.
+- `repo.findByIdHandle(...)` and `repo.findOneHandleSql(...)` return a `RowHandle(T)` for single-row access.
 
 Lifecycle rules:
 - `RowView` is valid only until the cursor advances or is deinitialized.
@@ -312,6 +317,7 @@ SQLite return codes are still mapped to specific errors such as
 Notable behavior-specific errors:
 - `error.StatementFinalized`: statement or row-backed handle used after `deinit()`/`finalize()`.
 - `error.RowViewStale`: a `RowView` was accessed after its cursor advanced.
+- `error.UnsafeSqlFragment`: guarded raw SQL fragment rejected by ORM safety checks.
 - `error.EmptyWhereClause`: `deleteWhereRaw` called with empty WHERE.
 - `error.UnexpectedExtraRows`: `findOne`/`findById` observed more rows than expected.
 
@@ -331,6 +337,7 @@ Notable behavior-specific errors:
 - `examples/orm_basic.zig`
 - `examples/orm_find_many.zig`
 - `examples/orm_find_one.zig`
+- `examples/orm_raw_sql_guard.zig`
 - `examples/orm_meta_options.zig`
 - `examples/stmt_bind_all.zig`
 - `examples/stmt_basic.zig`

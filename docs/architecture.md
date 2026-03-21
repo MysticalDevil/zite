@@ -76,10 +76,11 @@ engine internals stay hidden behind `orm`.
                                             +-------------------------+
 
 
-Execution path: Repository findOneRaw (owned)
+Execution path: Repository findOneSql (owned)
 ---------------------------------------------
-repo.findOneRaw(...)
-  -> orm.Repository.findOneRaw
+repo.findOneSql(...)
+  -> orm.Repository.findOneSql
+  -> orm.validateWhereRawFragment (guarded raw fragment checks)
   -> orm.mapper.findOne
   -> orm.engine.sql.buildFindOneSql
   -> orm.engine.sql.prepareOwnedSql

@@ -36,16 +36,33 @@ pub fn main() !void {
     defer a.free(ddl);
     try db.exec(ddl);
 
-    var user = User{
+    var user1 = User{
         .id = 1,
         .email = try OwnedText.fromConst(a, "a@example.com"),
     };
-    defer repo.freeOwnedRow(&user);
-    _ = try repo.insert(user);
+    defer repo.freeOwnedRow(&user1);
+    _ = try repo.insert(user1);
 
-    if (try repo.findOneSql("email = ?1", .{"a@example.com"})) |found| {
-        var owned = found;
-        defer repo.freeOwnedRow(&owned);
-        std.debug.print("id={d}\n", .{owned.id});
+    var user2 = User{
+        .id = 2,
+        .email = try OwnedText.fromConst(a, "b@example.com"),
+    };
+    defer repo.freeOwnedRow(&user2);
+    _ = try repo.insert(user2);
+
+    var search_email = try OwnedText.fromConst(a, "a@example.com");
+    defer search_email.deinit(a);
+    if (try repo.findOneSql("\"email\" = ?1", .{search_email})) |row| {
+        var found = row;
+        defer repo.freeOwnedRow(&found);
+        std.debug.print("guarded lookup id={d} email={s}\n", .{ found.id, found.email.value });
     }
+
+    const guarded = repo.findOneSql("1=1 --", .{});
+    try std.testing.expectError(error.UnsafeSqlFragment, guarded);
+    std.debug.print("guarded raw fragment rejected: UnsafeSqlFragment\n", .{});
+
+    const unsafe = repo.findOneSqlUnsafe("1=1 --", .{});
+    try std.testing.expectError(error.UnexpectedExtraRows, unsafe);
+    std.debug.print("unsafe raw fragment executed: got UnexpectedExtraRows\n", .{});
 }
