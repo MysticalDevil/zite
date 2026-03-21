@@ -44,7 +44,7 @@ pub fn main() !void {
     defer repo.freeOwnedRow(&user2);
     _ = try repo.insert(user2);
 
-    var rows = try repo.findManyRaw("id >= ?1", .{@as(i64, 1)});
+    var rows = try repo.findManySql("id >= ?1", .{@as(i64, 1)});
     defer rows.deinit();
 
     while (try rows.next()) |u| {

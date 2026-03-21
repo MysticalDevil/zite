@@ -70,7 +70,7 @@ test "mapper.deleteWhere: deletes matching rows" {
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 25) });
 
     // Delete only alice (age = 30)
-    const changed = try repo.deleteWhereRaw("\"age\"=?1", .{@as(i64, 30)});
+    const changed = try repo.deleteWhereSql("\"age\"=?1", .{@as(i64, 30)});
     try std.testing.expectEqual(@as(i32, 1), changed);
 
     // Bob should still exist
@@ -103,5 +103,42 @@ test "mapper.deleteWhere: empty clause is rejected" {
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = null });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = null });
 
-    try std.testing.expectError(error.EmptyWhereClause, repo.deleteWhereRaw("", .{}));
+    try std.testing.expectError(error.EmptyWhereClause, repo.deleteWhereSql("", .{}));
+}
+
+test "mapper.deleteWhereSql: guarded API rejects unsafe fragment" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTable(a, &db, User, "users");
+    var repo = orm.orm.repository(User, &db, a);
+
+    try std.testing.expectError(
+        error.UnsafeSqlFragment,
+        repo.deleteWhereSql("1=1 -- force", .{}),
+    );
+}
+
+test "mapper.deleteWhereSqlUnsafe: preserves prior behavior" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTable(a, &db, User, "users");
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer n2.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
+    _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 25) });
+
+    const changed = try repo.deleteWhereSqlUnsafe("\"age\"=?1 -- trusted", .{@as(i64, 30)});
+    try std.testing.expectEqual(@as(i32, 1), changed);
 }

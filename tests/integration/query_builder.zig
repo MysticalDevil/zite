@@ -288,6 +288,8 @@ test "orm.query: guarded raw APIs reject unsafe SQL fragments" {
 
     try std.testing.expectError(error.UnsafeSqlFragment, repo.findOneSql("1=1 -- force", .{}));
     try std.testing.expectError(error.UnsafeSqlFragment, repo.findOneHandleSql("1=1 -- force", .{}));
+    try std.testing.expectError(error.UnsafeSqlFragment, repo.findManySql("1=1 -- force", .{}));
+    try std.testing.expectError(error.UnsafeSqlFragment, repo.findManyOwnedSql("1=1 -- force", .{}));
 }
 
 test "orm.query: unsafe raw APIs preserve prior behavior" {
@@ -319,6 +321,20 @@ test "orm.query: unsafe raw APIs preserve prior behavior" {
     } else {
         return error.TestExpectedRow;
     }
+
+    var rows = try repo.findManySqlUnsafe("\"id\"=?1 -- keep", .{@as(i64, 1)});
+    defer rows.deinit();
+    const found_row = (try rows.next()).?;
+    var found_mut = found_row;
+    defer repo.freeOwnedRow(&found_mut);
+    try std.testing.expectEqualStrings("alice", found_mut.name.value);
+
+    var owned_rows = try repo.findManyOwnedSqlUnsafe("\"id\"=?1 -- keep", .{@as(i64, 1)});
+    defer owned_rows.deinit();
+    const owned = (try owned_rows.next()).?;
+    var owned_mut = owned;
+    defer owned_mut.deinit();
+    try std.testing.expectEqualStrings("alice", owned_mut.value.name.value);
 }
 
 test "orm.query: whereSql then whereEq keeps placeholder indices aligned" {

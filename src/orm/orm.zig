@@ -160,7 +160,16 @@ pub fn Repository(comptime T: type) type {
             return mapper.deleteById(T, self.db, id);
         }
 
-        pub fn deleteWhereRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!i32 {
+        /// Deletes rows using a guarded SQL WHERE fragment.
+        /// Rejects unsafe fragments (e.g. comments/semicolon/subquery keywords).
+        pub fn deleteWhereSql(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!i32 {
+            try validateWhereRawFragment(where_clause);
+            return self.deleteWhereSqlUnsafe(where_clause, params);
+        }
+
+        /// Deletes rows using an unchecked SQL WHERE fragment.
+        /// Caller must ensure `where_clause` is trusted.
+        pub fn deleteWhereSqlUnsafe(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!i32 {
             return mapper.deleteWhere(T, @TypeOf(params), self.db, where_clause, params);
         }
 
@@ -221,15 +230,43 @@ pub fn Repository(comptime T: type) type {
             return q.firstHandle();
         }
 
-        pub fn findManyRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!mapper.Rows(T) {
+        /// Executes a guarded `findMany` using a SQL WHERE fragment.
+        pub fn findManySql(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!mapper.Rows(T) {
+            try validateWhereRawFragment(where_clause);
+            return self.findManySqlUnsafe(where_clause, params);
+        }
+
+        /// Executes an unchecked `findMany` using a SQL WHERE fragment.
+        /// Caller must ensure `where_clause` is trusted.
+        pub fn findManySqlUnsafe(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!mapper.Rows(T) {
             return mapper.findMany(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
         }
 
-        pub fn findManyRawWithOptions(self: *Self, where_clause: []const u8, params: anytype, opts: mapper.FindManyOptions) errors.OrmError!mapper.Rows(T) {
+        /// Executes a guarded `findMany` with options.
+        /// Validates both `where_clause` and `opts.order_by` (if provided).
+        pub fn findManySqlWithOptions(self: *Self, where_clause: []const u8, params: anytype, opts: mapper.FindManyOptions) errors.OrmError!mapper.Rows(T) {
+            try validateWhereRawFragment(where_clause);
+            if (opts.order_by) |order_by| {
+                try validateOrderByRawFragment(order_by);
+            }
+            return self.findManySqlWithOptionsUnsafe(where_clause, params, opts);
+        }
+
+        /// Executes an unchecked `findMany` with options.
+        /// Caller must ensure both `where_clause` and `opts.order_by` are trusted.
+        pub fn findManySqlWithOptionsUnsafe(self: *Self, where_clause: []const u8, params: anytype, opts: mapper.FindManyOptions) errors.OrmError!mapper.Rows(T) {
             return mapper.findManyWithOptions(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params, opts);
         }
 
-        pub fn findManyOwnedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!mapper.OwnedRows(T) {
+        /// Executes a guarded `findManyOwned` using a SQL WHERE fragment.
+        pub fn findManyOwnedSql(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!mapper.OwnedRows(T) {
+            try validateWhereRawFragment(where_clause);
+            return self.findManyOwnedSqlUnsafe(where_clause, params);
+        }
+
+        /// Executes an unchecked `findManyOwned` using a SQL WHERE fragment.
+        /// Caller must ensure `where_clause` is trusted.
+        pub fn findManyOwnedSqlUnsafe(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!mapper.OwnedRows(T) {
             return mapper.findManyOwned(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
         }
 
@@ -645,6 +682,12 @@ fn validateWhereRawFragment(sql: []const u8) errors.OrmError!void {
     }
 }
 
+fn validateOrderByRawFragment(sql: []const u8) errors.OrmError!void {
+    // For now we share the same scanner policy as guarded WHERE fragments.
+    // This blocks statement separators/comments/subquery-driving keywords.
+    try validateWhereRawFragment(sql);
+}
+
 fn isIdentStart(ch: u8) bool {
     return std.ascii.isAlphabetic(ch) or ch == '_';
 }
@@ -851,4 +894,10 @@ test "orm: validateWhereRawFragment rejects unsafe fragments" {
     try std.testing.expectError(error.UnsafeSqlFragment, validateWhereRawFragment("1=1 -- force"));
     try std.testing.expectError(error.UnsafeSqlFragment, validateWhereRawFragment("\"id\" IN (SELECT id FROM users)"));
     try std.testing.expectError(error.UnsafeSqlFragment, validateWhereRawFragment("\"id\" = ?1 UNION \"id\" = ?2"));
+}
+
+test "orm: validateOrderByRawFragment rejects unsafe fragments" {
+    try std.testing.expectError(error.UnsafeSqlFragment, validateOrderByRawFragment("\"id\" DESC; DROP TABLE users"));
+    try std.testing.expectError(error.UnsafeSqlFragment, validateOrderByRawFragment("\"id\" DESC -- force"));
+    try std.testing.expectError(error.UnsafeSqlFragment, validateOrderByRawFragment("\"id\" DESC, (SELECT 1)"));
 }

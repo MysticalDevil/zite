@@ -36,7 +36,7 @@ test "mapper.findMany: ioterate rows and free owned fields" {
     _ = try repo.insert(.{ .id = 0, .name = name2, .age = 20, .created_at = 2 });
     _ = try repo.insert(.{ .id = 0, .name = name3, .age = 30, .created_at = 3 });
 
-    var rows = try repo.findManyRaw("\"age\">?1 ORDER BY \"id\" ASC", .{@as(i64, 18)});
+    var rows = try repo.findManySql("\"age\">?1 ORDER BY \"id\" ASC", .{@as(i64, 18)});
     defer rows.deinit();
 
     var count: usize = 0;

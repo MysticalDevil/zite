@@ -43,7 +43,7 @@ test "owned: findByIdOwned and findManyOwned free via deinit" {
         return error.TestExpectedRow;
     }
 
-    var rows = try repo.findManyOwnedRaw("\"id\">?1 ORDER BY \"id\" ASC", .{@as(i64, 0)});
+    var rows = try repo.findManyOwnedSql("\"id\">?1 ORDER BY \"id\" ASC", .{@as(i64, 0)});
     defer rows.deinit();
 
     var cnt: usize = 0;

@@ -14,7 +14,7 @@ const User = struct {
     };
 };
 
-test "mapper.findManyWithOptions: supports meta default order_by and explicit override" {
+test "mapper.findManySqlWithOptions: supports meta default order_by and explicit override" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -40,7 +40,7 @@ test "mapper.findManyWithOptions: supports meta default order_by and explicit ov
     _ = try repo.insert(.{ .id = 0, .name = n4 });
 
     // Meta.default order_by should apply when opts.order_by is null.
-    var rows_default = try repo.findManyRaw("", .{});
+    var rows_default = try repo.findManySql("", .{});
     defer rows_default.deinit();
 
     if (try rows_default.next()) |u| {
@@ -52,7 +52,7 @@ test "mapper.findManyWithOptions: supports meta default order_by and explicit ov
     }
 
     // Explicit options override Meta.order_by.
-    var rows = try repo.findManyRawWithOptions("", .{}, .{
+    var rows = try repo.findManySqlWithOptions("", .{}, .{
         .order_by = "\"id\" ASC",
         .limit = 2,
         .offset = 1,
@@ -70,4 +70,58 @@ test "mapper.findManyWithOptions: supports meta default order_by and explicit ov
     try std.testing.expectEqual(@as(usize, 2), ids.items.len);
     try std.testing.expectEqual(@as(i64, 2), ids.items[0]);
     try std.testing.expectEqual(@as(i64, 3), ids.items[1]);
+}
+
+test "mapper.findManySqlWithOptions: guarded order_by rejects unsafe fragments" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    try std.testing.expectError(
+        error.UnsafeSqlFragment,
+        repo.findManySqlWithOptions("", .{}, .{
+            .order_by = "\"id\" ASC; DROP TABLE users",
+        }),
+    );
+
+    try std.testing.expectError(
+        error.UnsafeSqlFragment,
+        repo.findManySqlWithOptions("", .{}, .{
+            .order_by = "\"id\" ASC -- force",
+        }),
+    );
+}
+
+test "mapper.findManySqlWithOptionsUnsafe: keeps previous behavior for trusted SQL" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    defer n2.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1 });
+    _ = try repo.insert(.{ .id = 0, .name = n2 });
+
+    var rows = try repo.findManySqlWithOptionsUnsafe("\"id\">?1", .{@as(i64, 0)}, .{
+        .order_by = "\"id\" DESC -- trusted",
+        .limit = 1,
+    });
+    defer rows.deinit();
+
+    const first = (try rows.next()).?;
+    var first_mut = first;
+    defer repo.freeOwnedRow(&first_mut);
+    try std.testing.expectEqual(@as(i64, 2), first_mut.id);
 }
