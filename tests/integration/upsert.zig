@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
@@ -22,7 +23,7 @@ test "mapper.upsert: insert then update and no-op update keeps single row" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var name_insert = try orm.types.OwnedText.fromConst(a, "alice");
     defer name_insert.deinit(a);
@@ -31,7 +32,7 @@ test "mapper.upsert: insert then update and no-op update keeps single row" {
         .name = name_insert,
         .age = 20,
     });
-    try std.testing.expectEqual(orm.orm.UpsertResult.inserted, inserted);
+    try std.testing.expectEqual(orm.UpsertResult.inserted, inserted);
 
     var name_update = try orm.types.OwnedText.fromConst(a, "alice2");
     defer name_update.deinit(a);
@@ -40,7 +41,7 @@ test "mapper.upsert: insert then update and no-op update keeps single row" {
         .name = name_update,
         .age = 30,
     });
-    try std.testing.expectEqual(orm.orm.UpsertResult.updated, updated);
+    try std.testing.expectEqual(orm.UpsertResult.updated, updated);
 
     var name_same = try orm.types.OwnedText.fromConst(a, "alice2");
     defer name_same.deinit(a);
@@ -49,7 +50,7 @@ test "mapper.upsert: insert then update and no-op update keeps single row" {
         .name = name_same,
         .age = 30,
     });
-    try std.testing.expectEqual(orm.orm.UpsertResult.updated, updated_same);
+    try std.testing.expectEqual(orm.UpsertResult.updated, updated_same);
 
     var st_count = try orm.Stmt.init(&db, "SELECT COUNT(*) FROM users WHERE id=?1;");
     defer st_count.deinit();

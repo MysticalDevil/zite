@@ -1,11 +1,12 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 test "tx types are exposed from root and orm" {
     const m1: orm.TxMode = .deferred;
     _ = m1;
-    const m2: orm.orm.TxMode = .immediate;
+    const m2: orm.TxMode = .immediate;
     _ = m2;
 }
 
@@ -28,7 +29,7 @@ test "orm transaction: commit persists rows" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var tx = try repo.beginTx(.deferred);
     defer tx.deinit();
@@ -55,7 +56,7 @@ test "orm transaction: rollback drops rows" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     {
         var tx = try repo.beginTx(.deferred);
@@ -78,7 +79,7 @@ test "orm transaction: explicit rollback drops rows" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var tx = try repo.beginTx(.deferred);
     defer tx.deinit();

@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
@@ -24,7 +25,7 @@ test "mapper.findMany: ioterate rows and free owned fields" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var name1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);

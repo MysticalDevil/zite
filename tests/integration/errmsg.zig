@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 
 fn containsAny(hay: []const u8, needles: []const []const u8) bool {
     for (needles) |n| {
@@ -19,7 +20,7 @@ test "errmsg: exec syntax error provides message" {
     defer db.deinit();
 
     const r = db.exec("THIS IS NOT SQL;");
-    try std.testing.expectError(error.SqliteExecFailed, r);
+    try std.testing.expectError(error.DriverExecFailed, r);
 
     const msg = db.errmsg();
     try std.testing.expect(msg.len != 0);
@@ -58,7 +59,7 @@ test "errmsg: step runtime error provides message" {
         var name2 = try orm.types.OwnedText.fromConst(a, "alice");
         defer name2.deinit(a);
         try st2.bindOne(1, name2);
-        try std.testing.expectError(error.SqliteConstraint, st2.step());
+        try std.testing.expectError(error.DriverConstraint, st2.step());
     }
 
     const msg = db.errmsg();
@@ -78,7 +79,7 @@ test "errmsg: bind out-of-range provides message" {
     defer st.deinit();
 
     const r = st.bindOne(2, @as(i64, 1));
-    try std.testing.expectError(error.SqliteRange, r);
+    try std.testing.expectError(error.DriverRange, r);
 
     const msg = db.errmsg();
     try std.testing.expect(msg.len != 0);

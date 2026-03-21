@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 
 const types = orm.types;
 
@@ -22,7 +23,7 @@ test "float + EpochMillis: insert -> findById -> findOne" {
 
     var db = try orm.Db.open(a, ":memory:");
     defer db.deinit();
-    var repo = orm.orm.repository(Sample, &db, a);
+    var repo = orm.repository(Sample, &db, a);
 
     const ddl = try orm.schema.createTableSqlFromMeta(a, Sample);
     defer a.free(ddl);
