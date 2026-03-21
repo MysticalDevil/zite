@@ -194,6 +194,55 @@ test "orm.query: row handle is invalid after deinit" {
     try std.testing.expectError(error.StatementFinalized, one.get("name"));
 }
 
+test "orm.query: firstHandle remains valid after query builder deinit" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
+
+    var q = repo.query();
+    try q.whereEq("id", @as(i64, 1));
+
+    var handle = (try q.firstHandle()).?;
+    q.deinit();
+    defer handle.deinit();
+
+    try std.testing.expectEqualStrings("alice", try handle.get("name"));
+    try std.testing.expectEqual(@as(i64, 11), (try handle.get("age")).?);
+}
+
+test "orm.query: row view is finalized after cursor deinit" {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const a = gpa.allocator();
+
+    var db = try helpers.openMemoryDb(a);
+    defer db.deinit();
+    try helpers.createTableFromMeta(a, &db, User);
+    var repo = orm.orm.repository(User, &db, a);
+
+    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    defer n1.deinit(a);
+    _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
+
+    var q = repo.query();
+    defer q.deinit();
+    var cursor = try q.iterateViews();
+
+    const row = (try cursor.next()).?;
+    cursor.deinit();
+
+    try std.testing.expectError(error.StatementFinalized, row.get("name"));
+}
+
 test "orm.query: whereRaw is atomic when param conversion fails" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
