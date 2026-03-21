@@ -27,7 +27,7 @@ zig run --dep zite -Mroot=examples/orm_raw_sql_guard.zig -Mzite=src/root.zig -lc
 ```
 
 **orm_find_many.zig**  
-`findMany` iteration.
+`findManySql` iteration.
 ```sh
 zig run --dep zite -Mroot=examples/orm_find_many.zig -Mzite=src/root.zig -lc -lsqlite3
 ```

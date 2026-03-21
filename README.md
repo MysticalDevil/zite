@@ -66,6 +66,8 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | ORM update | `repo.update` | Returns rows changed. |
 | ORM upsert | `repo.upsert` | Returns `.inserted` or `.updated`. |
 | Query builder | `repo.query()` | Builder with `whereEq/whereSql/orderBy/limit/offset`. |
+| Guarded raw fragments | `repo.findOneSql`, `repo.findManySql`, `repo.deleteWhereSql` | Rejects unsafe fragments with `error.UnsafeSqlFragment`. |
+| Explicit unchecked raw fragments | `repo.findOneSqlUnsafe`, `repo.findManySqlUnsafe`, `repo.deleteWhereSqlUnsafe` | Caller guarantees SQL fragment trustworthiness. |
 | Find by id | `repo.findByIdOwned` | `OwnedRow(T)` or `null`. |
 | Row handle | `repo.findByIdHandle` | `RowHandle(T)` for single-row zero-copy access. |
 | Row cursor | `q.iterateViews()` | `RowCursor(T)` for zero-copy row views. |
@@ -169,10 +171,17 @@ default order when builder order is not explicitly set.
 That means `?1`, `?2`, or bare `?` inside the raw fragment are local to that
 fragment, even when mixed with earlier `whereEq` calls.
 
-Guarded raw APIs (`whereSql`, `findOneSql`, `findOneHandleSql`) reject unsafe
-fragments such as statement separators, SQL comments, and statement-level
-keywords. For trusted advanced fragments, use the explicit unsafe variants:
-`whereSqlUnsafe`, `findOneSqlUnsafe`, `findOneHandleSqlUnsafe`.
+Guarded raw APIs reject unsafe fragments such as statement separators, SQL
+comments, and statement-level keywords.
+
+- Query builder: `whereSql` (unsafe counterpart: `whereSqlUnsafe`)
+- Repository: `findOneSql`, `findOneHandleSql`, `findManySql`,
+  `findManySqlWithOptions`, `findManyOwnedSql`, `deleteWhereSql`
+- Repository unsafe counterparts: `findOneSqlUnsafe`, `findOneHandleSqlUnsafe`,
+  `findManySqlUnsafe`, `findManySqlWithOptionsUnsafe`,
+  `findManyOwnedSqlUnsafe`, `deleteWhereSqlUnsafe`
+
+`findManySqlWithOptions` validates both `where_clause` and `opts.order_by`.
 
 ```zig
 var q = repo.query();
@@ -381,7 +390,7 @@ Generate a small file-backed SQLite database for manual testing:
 
 ## Architecture
 
-- Detailed architecture doc: `docs/architecture.md`
+- Detailed architecture doc: `docs/ARCHITECTURE.md`
 
 ## Project Layout
 
