@@ -3,7 +3,7 @@ const meta = @import("../../core/meta.zig");
 const errors = @import("../../core/errors.zig");
 
 /// Steps once and enforces SQLITE_DONE.
-pub fn stepExpectDone(st: *Stmt, err_on_row: errors.ZiteError) errors.ZiteError!void {
+pub fn stepExpectDone(st: *Stmt, err_on_row: anytype) (errors.StmtError || @TypeOf(err_on_row))!void {
     const r = try st.step();
     if (r != .done) {
         return err_on_row;
@@ -11,19 +11,19 @@ pub fn stepExpectDone(st: *Stmt, err_on_row: errors.ZiteError) errors.ZiteError!
 }
 
 /// Steps once and reports whether a row was produced.
-pub fn stepIsRow(st: *Stmt) errors.ZiteError!bool {
+pub fn stepIsRow(st: *Stmt) errors.StmtError!bool {
     const r = try st.step();
     return r == .row;
 }
 
 /// Resets a reusable statement on iteration i>0.
-pub fn resetForReuse(st: *Stmt, i: usize) errors.ZiteError!void {
+pub fn resetForReuse(st: *Stmt, i: usize) errors.StmtError!void {
     if (i != 0) {
         try st.reset();
     }
 }
 
-pub fn bindInsertValues(comptime T: type, st: *Stmt, entity: T) errors.ZiteError!void {
+pub fn bindInsertValues(comptime T: type, st: *Stmt, entity: T) errors.StmtError!void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") {
         @compileError("bindInsertValues expects a struct type");
@@ -46,7 +46,7 @@ pub fn bindInsertValues(comptime T: type, st: *Stmt, entity: T) errors.ZiteError
     }
 }
 
-pub fn bindUpdateValues(comptime T: type, st: *Stmt, entity: T) errors.ZiteError!void {
+pub fn bindUpdateValues(comptime T: type, st: *Stmt, entity: T) errors.StmtError!void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") {
         @compileError("bindUpdateValues expects a struct type");

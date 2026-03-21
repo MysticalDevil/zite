@@ -26,7 +26,7 @@ pub fn BorrowedRow(comptime T: type) type {
         const Self = @This();
         const m = meta.getMeta(T);
 
-        pub fn get(self: Self, comptime field: []const u8) errors.ZiteError!BorrowedFieldType(T, field) {
+        pub fn get(self: Self, comptime field: []const u8) errors.RowReadError!BorrowedFieldType(T, field) {
             try self.owner.ensureRowAlive(self.row_generation);
             const col = comptime fieldColumnIndex(field);
             const FieldT = comptime fieldType(field);
@@ -113,7 +113,7 @@ pub fn BorrowedOne(comptime T: type) type {
 
         const Self = @This();
 
-        pub fn get(self: *Self, comptime field: []const u8) errors.ZiteError!BorrowedFieldType(T, field) {
+        pub fn get(self: *Self, comptime field: []const u8) errors.RowReadError!BorrowedFieldType(T, field) {
             return (BorrowedRow(T){
                 .owner = &self.rows,
                 .row_generation = self.row_generation,
@@ -140,35 +140,35 @@ pub fn Repository(comptime T: type) type {
 
         const Self = @This();
 
-        pub fn insert(self: *Self, entity: T) errors.ZiteError!i64 {
+        pub fn insert(self: *Self, entity: T) errors.OrmError!i64 {
             return mapper.insert(T, self.db, entity);
         }
 
-        pub fn insertMany(self: *Self, entities: []const T) errors.ZiteError!usize {
+        pub fn insertMany(self: *Self, entities: []const T) errors.OrmError!usize {
             return mapper.insertMany(T, self.db, entities);
         }
 
-        pub fn update(self: *Self, entity: T) errors.ZiteError!i32 {
+        pub fn update(self: *Self, entity: T) errors.OrmError!i32 {
             return mapper.update(T, self.db, entity);
         }
 
-        pub fn upsert(self: *Self, entity: T) errors.ZiteError!UpsertResult {
+        pub fn upsert(self: *Self, entity: T) errors.OrmError!UpsertResult {
             return mapper.upsert(T, self.db, entity);
         }
 
-        pub fn deleteById(self: *Self, id: anytype) errors.ZiteError!i32 {
+        pub fn deleteById(self: *Self, id: anytype) errors.OrmError!i32 {
             return mapper.deleteById(T, self.db, id);
         }
 
-        pub fn deleteWhereRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!i32 {
+        pub fn deleteWhereRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!i32 {
             return mapper.deleteWhere(T, @TypeOf(params), self.db, where_clause, params);
         }
 
-        pub fn beginTx(self: *Self, mode: Db.TxMode) errors.ZiteError!Db.Tx {
+        pub fn beginTx(self: *Self, mode: Db.TxMode) errors.DbError!Db.Tx {
             return self.db.beginTx(mode);
         }
 
-        pub fn findById(self: *Self, id: anytype) errors.ZiteError!?T {
+        pub fn findById(self: *Self, id: anytype) errors.OrmError!?T {
             return mapper.findById(T, self.db, self.owned_allocator, id);
         }
 
@@ -176,7 +176,7 @@ pub fn Repository(comptime T: type) type {
             return Query(T).init(self.db, self.owned_allocator);
         }
 
-        pub fn findByIdOwned(self: *Self, id: anytype) errors.ZiteError!?OwnedRow(T) {
+        pub fn findByIdOwned(self: *Self, id: anytype) errors.OrmError!?OwnedRow(T) {
             if (try mapper.findById(T, self.db, self.owned_allocator, id)) |v| {
                 return .{
                     .allocator = self.owned_allocator,
@@ -186,7 +186,7 @@ pub fn Repository(comptime T: type) type {
             return null;
         }
 
-        pub fn findByIdBorrowed(self: *Self, id: anytype) errors.ZiteError!?BorrowedOne(T) {
+        pub fn findByIdBorrowed(self: *Self, id: anytype) errors.OrmError!?BorrowedOne(T) {
             const pk_field = comptime meta.getMeta(T).primary_key;
             var q = self.query();
             // Safe: q.deinit() only releases query builder buffers.
@@ -196,11 +196,11 @@ pub fn Repository(comptime T: type) type {
             return q.firstBorrowed();
         }
 
-        pub fn findOneRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!?T {
+        pub fn findOneRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?T {
             return mapper.findOne(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
         }
 
-        pub fn findOneBorrowedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!?BorrowedOne(T) {
+        pub fn findOneBorrowedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?BorrowedOne(T) {
             var q = self.query();
             // Safe: q.deinit() does not touch the statement owned by returned BorrowedOne.
             defer q.deinit();
@@ -208,15 +208,15 @@ pub fn Repository(comptime T: type) type {
             return q.firstBorrowed();
         }
 
-        pub fn findManyRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!mapper.Rows(T) {
+        pub fn findManyRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!mapper.Rows(T) {
             return mapper.findMany(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
         }
 
-        pub fn findManyRawWithOptions(self: *Self, where_clause: []const u8, params: anytype, opts: mapper.FindManyOptions) errors.ZiteError!mapper.Rows(T) {
+        pub fn findManyRawWithOptions(self: *Self, where_clause: []const u8, params: anytype, opts: mapper.FindManyOptions) errors.OrmError!mapper.Rows(T) {
             return mapper.findManyWithOptions(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params, opts);
         }
 
-        pub fn findManyOwnedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.ZiteError!mapper.OwnedRows(T) {
+        pub fn findManyOwnedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!mapper.OwnedRows(T) {
             return mapper.findManyOwned(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
         }
 
@@ -238,7 +238,7 @@ pub fn RowsBorrowed(comptime T: type) type {
             self.closeAndInvalidate();
         }
 
-        pub fn next(self: *Self) errors.ZiteError!?BorrowedRow(T) {
+        pub fn next(self: *Self) errors.RowReadError!?BorrowedRow(T) {
             if (self.done) {
                 return null;
             }
@@ -260,7 +260,7 @@ pub fn RowsBorrowed(comptime T: type) type {
             };
         }
 
-        fn ensureRowAlive(self: *const Self, row_generation: usize) errors.ZiteError!void {
+        fn ensureRowAlive(self: *const Self, row_generation: usize) errors.RowReadError!void {
             if (self.st.isFinalized()) {
                 return error.StatementFinalized;
             }
@@ -306,7 +306,7 @@ pub fn Query(comptime T: type) type {
             self.order_buf.deinit(self.db.allocator);
         }
 
-        pub fn whereEq(self: *Self, comptime field: []const u8, value: anytype) errors.ZiteError!void {
+        pub fn whereEq(self: *Self, comptime field: []const u8, value: anytype) errors.OrmError!void {
             const column = comptime columnForField(field);
             const idx = self.params.items.len + 1;
             const where_len_before = self.where_buf.items.len;
@@ -327,7 +327,7 @@ pub fn Query(comptime T: type) type {
         /// Appends a raw WHERE fragment and binds params using fragment-local
         /// placeholder numbering. `?1`, `?2`, and bare `?` are rebased against
         /// the query's existing parameter count before prepare/bind.
-        pub fn whereRaw(self: *Self, sql: []const u8, params: anytype) errors.ZiteError!void {
+        pub fn whereRaw(self: *Self, sql: []const u8, params: anytype) errors.OrmError!void {
             const trimmed = std.mem.trim(u8, sql, " \t\r\n");
             const where_len_before = self.where_buf.items.len;
             const params_len_before = self.params.items.len;
@@ -356,7 +356,7 @@ pub fn Query(comptime T: type) type {
             }
         }
 
-        pub fn orderBy(self: *Self, comptime field: []const u8, dir: OrderDir) errors.ZiteError!void {
+        pub fn orderBy(self: *Self, comptime field: []const u8, dir: OrderDir) errors.OrmError!void {
             const column = comptime columnForField(field);
 
             if (self.order_buf.items.len != 0) {
@@ -379,13 +379,13 @@ pub fn Query(comptime T: type) type {
             self.offset = n;
         }
 
-        pub fn firstOwned(self: *Self) errors.ZiteError!?OwnedRow(T) {
+        pub fn firstOwned(self: *Self) errors.OrmError!?OwnedRow(T) {
             var rows = try self.iterateOwnedWithLimit(1);
             defer rows.deinit();
             return rows.next();
         }
 
-        pub fn firstBorrowed(self: *Self) errors.ZiteError!?BorrowedOne(T) {
+        pub fn firstBorrowed(self: *Self) errors.OrmError!?BorrowedOne(T) {
             var rows = try self.iterateBorrowedWithLimit(1);
             if (try rows.next()) |row| {
                 // Move rows (and its prepared statement) into BorrowedOne.
@@ -397,15 +397,15 @@ pub fn Query(comptime T: type) type {
             return null;
         }
 
-        pub fn iterateOwned(self: *Self) errors.ZiteError!OwnedRows(T) {
+        pub fn iterateOwned(self: *Self) errors.OrmError!OwnedRows(T) {
             return self.iterateOwnedWithLimit(self.limit);
         }
 
-        pub fn iterateBorrowed(self: *Self) errors.ZiteError!RowsBorrowed(T) {
+        pub fn iterateBorrowed(self: *Self) errors.OrmError!RowsBorrowed(T) {
             return self.iterateBorrowedWithLimit(self.limit);
         }
 
-        pub fn allOwned(self: *Self) errors.ZiteError![]OwnedRow(T) {
+        pub fn allOwned(self: *Self) errors.OrmError![]OwnedRow(T) {
             var rows = try self.iterateOwned();
             defer rows.deinit();
 
@@ -419,7 +419,7 @@ pub fn Query(comptime T: type) type {
             return try out.toOwnedSlice(self.owned_allocator);
         }
 
-        fn iterateOwnedWithLimit(self: *Self, limit_override: ?usize) errors.ZiteError!OwnedRows(T) {
+        fn iterateOwnedWithLimit(self: *Self, limit_override: ?usize) errors.OrmError!OwnedRows(T) {
             const opts: engine.sql.FindManyOptions = .{
                 .order_by = if (self.order_buf.items.len == 0) null else self.order_buf.items,
                 .limit = if (limit_override) |n| n else self.limit,
@@ -443,7 +443,7 @@ pub fn Query(comptime T: type) type {
             };
         }
 
-        fn iterateBorrowedWithLimit(self: *Self, limit_override: ?usize) errors.ZiteError!RowsBorrowed(T) {
+        fn iterateBorrowedWithLimit(self: *Self, limit_override: ?usize) errors.OrmError!RowsBorrowed(T) {
             const opts: engine.sql.FindManyOptions = .{
                 .order_by = if (self.order_buf.items.len == 0) null else self.order_buf.items,
                 .limit = if (limit_override) |n| n else self.limit,
@@ -464,13 +464,13 @@ pub fn Query(comptime T: type) type {
             };
         }
 
-        fn appendWherePrefix(self: *Self) errors.ZiteError!void {
+        fn appendWherePrefix(self: *Self) errors.OrmError!void {
             if (self.where_buf.items.len != 0) {
                 try self.where_buf.appendSlice(self.db.allocator, " AND ");
             }
         }
 
-        fn appendParam(self: *Self, value: anytype) errors.ZiteError!void {
+        fn appendParam(self: *Self, value: anytype) errors.OrmError!void {
             const p = try toQueryParam(value);
             try self.params.append(self.db.allocator, p);
         }
@@ -489,7 +489,7 @@ pub fn Query(comptime T: type) type {
     };
 }
 
-fn toQueryParam(value: anytype) errors.ZiteError!QueryParam {
+fn toQueryParam(value: anytype) errors.OrmError!QueryParam {
     const V = @TypeOf(value);
 
     if (V == types.EpochMillis) {
@@ -540,7 +540,7 @@ fn toQueryParam(value: anytype) errors.ZiteError!QueryParam {
     }
 }
 
-fn bindQueryParam(st: *Stmt, idx: i32, p: QueryParam) errors.ZiteError!void {
+fn bindQueryParam(st: *Stmt, idx: i32, p: QueryParam) errors.OrmError!void {
     switch (p) {
         .null => try st.bindNull(idx),
         .int => |v| try st.bindInt(idx, v),
@@ -556,7 +556,7 @@ fn appendRebasedWhereSql(
     out: *std.ArrayList(u8),
     sql: []const u8,
     base_index: usize,
-) errors.ZiteError!void {
+) errors.OrmError!void {
     var state: SqlScanState = .code;
     var i: usize = 0;
     var next_relative_index: usize = 1;

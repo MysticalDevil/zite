@@ -27,7 +27,7 @@ pub const Db = struct {
 
         const TxSelf = @This();
 
-        pub fn commit(self: *TxSelf) errors.ZiteError!void {
+        pub fn commit(self: *TxSelf) errors.DbError!void {
             if (self.finished) {
                 return;
             }
@@ -35,7 +35,7 @@ pub const Db = struct {
             self.finished = true;
         }
 
-        pub fn rollback(self: *TxSelf) errors.ZiteError!void {
+        pub fn rollback(self: *TxSelf) errors.DbError!void {
             if (self.finished) {
                 return;
             }
@@ -57,7 +57,7 @@ pub const Db = struct {
 
     /// Opens a SQLite database at the provided path.
     /// Caller must `deinit()` when finished.
-    pub fn open(allocator: std.mem.Allocator, path: []const u8) errors.ZiteError!Self {
+    pub fn open(allocator: std.mem.Allocator, path: []const u8) errors.DbError!Self {
         const path_z = try allocator.dupeZ(u8, path);
         defer allocator.free(path_z);
 
@@ -97,7 +97,7 @@ pub const Db = struct {
 
     /// Executes a SQL statement without returning rows.
     /// The SQL string is copied into a temporary null-terminated buffer.
-    pub fn exec(self: *Self, sql: []const u8) errors.ZiteError!void {
+    pub fn exec(self: *Self, sql: []const u8) errors.DbError!void {
         const sql_z = try self.allocator.dupeZ(u8, sql);
         defer self.allocator.free(sql_z);
 
@@ -109,7 +109,7 @@ pub const Db = struct {
         }
     }
 
-    pub fn beginTx(self: *Self, mode: TxMode) errors.ZiteError!Tx {
+    pub fn beginTx(self: *Self, mode: TxMode) errors.DbError!Tx {
         switch (mode) {
             .deferred => try self.exec("BEGIN;"),
             .immediate => try self.exec("BEGIN IMMEDIATE;"),
@@ -145,7 +145,7 @@ pub const Db = struct {
 
     /// Records that a statement has been finalized.
     /// Returns an error if the counter would underflow.
-    pub fn unregisterStmt(self: *Self) errors.ZiteError!void {
+    pub fn unregisterStmt(self: *Self) errors.DbError!void {
         if (self.active_stmts <= 0) {
             return error.StatementCountUnderflow;
         }

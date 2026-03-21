@@ -15,7 +15,7 @@ fn appendSelectColumns(
     comptime T: type,
     comptime m: meta.Meta,
     b: *sqlutil.SqlBuilder,
-) errors.ZiteError!void {
+) errors.AllocError!void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") {
         @compileError("appendSelectColumns expects a struct type");
@@ -38,11 +38,11 @@ fn appendSelectColumns(
 fn toOwnedSql(
     db: *Db,
     buf: *std.ArrayList(u8),
-) errors.ZiteError![]u8 {
+) errors.AllocError![]u8 {
     return try buf.toOwnedSlice(db.allocator);
 }
 
-pub fn buildExistsByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
+pub fn buildExistsByIdSql(comptime T: type, db: *Db) errors.AllocError![]u8 {
     if (@typeInfo(T) != .@"struct") {
         @compileError("buildExistsByIdSql expects a struct type");
     }
@@ -61,7 +61,7 @@ pub fn buildExistsByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
     return toOwnedSql(db, &buf);
 }
 
-pub fn buildInsertSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
+pub fn buildInsertSql(comptime T: type, db: *Db) errors.AllocError![]u8 {
     const m = comptime meta.getMeta(T);
     const ncols = comptime meta.insertableCount(T, m);
 
@@ -80,7 +80,7 @@ pub fn buildInsertSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
     return toOwnedSql(db, &buf);
 }
 
-pub fn buildUpdateSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
+pub fn buildUpdateSql(comptime T: type, db: *Db) errors.AllocError![]u8 {
     const m = comptime meta.getMeta(T);
     const set_count = comptime meta.updateSetCount(T, m);
 
@@ -101,7 +101,7 @@ pub fn buildUpdateSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
     return toOwnedSql(db, &buf);
 }
 
-pub fn buildDeleteByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
+pub fn buildDeleteByIdSql(comptime T: type, db: *Db) errors.AllocError![]u8 {
     if (@typeInfo(T) != .@"struct") {
         @compileError("buildDeleteByIdSql expects a struct type");
     }
@@ -120,7 +120,7 @@ pub fn buildDeleteByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
     return toOwnedSql(db, &buf);
 }
 
-pub fn buildDeleteWhereSql(comptime T: type, db: *Db, where_clause: []const u8) errors.ZiteError![]u8 {
+pub fn buildDeleteWhereSql(comptime T: type, db: *Db, where_clause: []const u8) errors.SqlBuildError![]u8 {
     if (@typeInfo(T) != .@"struct") {
         @compileError("buildDeleteWhereSql expects a struct type");
     }
@@ -143,7 +143,7 @@ pub fn buildDeleteWhereSql(comptime T: type, db: *Db, where_clause: []const u8) 
     return toOwnedSql(db, &buf);
 }
 
-pub fn buildFindByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
+pub fn buildFindByIdSql(comptime T: type, db: *Db) errors.AllocError![]u8 {
     if (@typeInfo(T) != .@"struct") {
         @compileError("buildFindByIdSql expects a struct type");
     }
@@ -164,7 +164,7 @@ pub fn buildFindByIdSql(comptime T: type, db: *Db) errors.ZiteError![]u8 {
     return toOwnedSql(db, &buf);
 }
 
-pub fn buildFindOneSql(comptime T: type, db: *Db, where_clause: []const u8) errors.ZiteError![]u8 {
+pub fn buildFindOneSql(comptime T: type, db: *Db, where_clause: []const u8) errors.AllocError![]u8 {
     if (@typeInfo(T) != .@"struct") {
         @compileError("buildFindOneSql expects a struct type");
     }
@@ -193,7 +193,7 @@ pub fn buildFindManySql(
     db: *Db,
     where_clause: []const u8,
     opts: FindManyOptions,
-) errors.ZiteError![]u8 {
+) errors.AllocError![]u8 {
     if (@typeInfo(T) != .@"struct") {
         @compileError("buildFindManySql expects a struct type");
     }
@@ -241,7 +241,7 @@ pub fn buildFindManySql(
     return toOwnedSql(db, &buf);
 }
 
-pub fn prepareOwnedSql(db: *Db, sql: []const u8) errors.ZiteError!Stmt {
+pub fn prepareOwnedSql(db: *Db, sql: []const u8) errors.StmtError!Stmt {
     defer db.allocator.free(sql);
     return try Stmt.init(db, sql);
 }

@@ -14,7 +14,7 @@ pub const AsyncPool = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: std.mem.Allocator, db_path: []const u8, options: Options) errors.ZiteError!Self {
+    pub fn init(allocator: std.mem.Allocator, db_path: []const u8, options: Options) errors.AllocError!Self {
         _ = options;
         return .{
             .allocator = allocator,
@@ -51,12 +51,12 @@ pub const AsyncPool = struct {
         return future.await(io);
     }
 
-    pub fn insert(self: *const Self, io: std.Io, comptime T: type, entity: T) errors.ZiteError!i64 {
+    pub fn insert(self: *const Self, io: std.Io, comptime T: type, entity: T) errors.AsyncOrmError!i64 {
         const Context = struct {
             entity: T,
         };
         const Runner = struct {
-            fn run(db: *Db, ctx: Context) errors.ZiteError!i64 {
+            fn run(db: *Db, ctx: Context) errors.OrmError!i64 {
                 var repo = orm.repository(T, db, db.allocator);
                 return repo.insert(ctx.entity);
             }
@@ -64,12 +64,12 @@ pub const AsyncPool = struct {
         return self.withConnection(io, Context{ .entity = entity }, Runner.run);
     }
 
-    pub fn update(self: *const Self, io: std.Io, comptime T: type, entity: T) errors.ZiteError!i32 {
+    pub fn update(self: *const Self, io: std.Io, comptime T: type, entity: T) errors.AsyncOrmError!i32 {
         const Context = struct {
             entity: T,
         };
         const Runner = struct {
-            fn run(db: *Db, ctx: Context) errors.ZiteError!i32 {
+            fn run(db: *Db, ctx: Context) errors.OrmError!i32 {
                 var repo = orm.repository(T, db, db.allocator);
                 return repo.update(ctx.entity);
             }
@@ -77,12 +77,12 @@ pub const AsyncPool = struct {
         return self.withConnection(io, Context{ .entity = entity }, Runner.run);
     }
 
-    pub fn upsert(self: *const Self, io: std.Io, comptime T: type, entity: T) errors.ZiteError!orm.UpsertResult {
+    pub fn upsert(self: *const Self, io: std.Io, comptime T: type, entity: T) errors.AsyncOrmError!orm.UpsertResult {
         const Context = struct {
             entity: T,
         };
         const Runner = struct {
-            fn run(db: *Db, ctx: Context) errors.ZiteError!orm.UpsertResult {
+            fn run(db: *Db, ctx: Context) errors.OrmError!orm.UpsertResult {
                 var repo = orm.repository(T, db, db.allocator);
                 return repo.upsert(ctx.entity);
             }
@@ -90,12 +90,12 @@ pub const AsyncPool = struct {
         return self.withConnection(io, Context{ .entity = entity }, Runner.run);
     }
 
-    pub fn deleteById(self: *const Self, io: std.Io, comptime T: type, id: anytype) errors.ZiteError!i32 {
+    pub fn deleteById(self: *const Self, io: std.Io, comptime T: type, id: anytype) errors.AsyncOrmError!i32 {
         const Context = struct {
             id: @TypeOf(id),
         };
         const Runner = struct {
-            fn run(db: *Db, ctx: Context) errors.ZiteError!i32 {
+            fn run(db: *Db, ctx: Context) errors.OrmError!i32 {
                 var repo = orm.repository(T, db, db.allocator);
                 return repo.deleteById(ctx.id);
             }
@@ -109,13 +109,13 @@ pub const AsyncPool = struct {
         comptime T: type,
         owned_allocator: std.mem.Allocator,
         id: anytype,
-    ) errors.ZiteError!?orm.OwnedRow(T) {
+    ) errors.AsyncOrmError!?orm.OwnedRow(T) {
         const Context = struct {
             owned_allocator: std.mem.Allocator,
             id: @TypeOf(id),
         };
         const Runner = struct {
-            fn run(db: *Db, ctx: Context) errors.ZiteError!?orm.OwnedRow(T) {
+            fn run(db: *Db, ctx: Context) errors.OrmError!?orm.OwnedRow(T) {
                 var repo = orm.repository(T, db, ctx.owned_allocator);
                 return repo.findByIdOwned(ctx.id);
             }
@@ -133,14 +133,14 @@ pub const AsyncPool = struct {
         owned_allocator: std.mem.Allocator,
         where_clause: []const u8,
         params: anytype,
-    ) errors.ZiteError!?T {
+    ) errors.AsyncOrmError!?T {
         const Context = struct {
             owned_allocator: std.mem.Allocator,
             where_clause: []const u8,
             params: @TypeOf(params),
         };
         const Runner = struct {
-            fn run(db: *Db, ctx: Context) errors.ZiteError!?T {
+            fn run(db: *Db, ctx: Context) errors.OrmError!?T {
                 var repo = orm.repository(T, db, ctx.owned_allocator);
                 return repo.findOneRaw(ctx.where_clause, ctx.params);
             }
@@ -170,7 +170,7 @@ fn normalizedResultType(comptime Function: type) type {
     const Result = fn_info.return_type orelse @compileError("async_pool worker must have a return type");
     return switch (@typeInfo(Result)) {
         .error_union => Result,
-        else => errors.ZiteError!Result,
+        else => errors.OrmError!Result,
     };
 }
 

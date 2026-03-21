@@ -18,48 +18,48 @@ pub const SqlBuilder = struct {
     }
 
     /// Reserves additional capacity to reduce reallocations.
-    pub fn reserve(self: *SqlBuilder, extra: usize) errors.ZiteError!void {
+    pub fn reserve(self: *SqlBuilder, extra: usize) errors.AllocError!void {
         try self.list.ensureUnusedCapacity(self.gpa, extra);
     }
 
     /// Appends a literal SQL fragment.
-    pub fn lit(self: *SqlBuilder, s: []const u8) errors.ZiteError!void {
+    pub fn lit(self: *SqlBuilder, s: []const u8) errors.AllocError!void {
         try self.list.appendSlice(self.gpa, s);
     }
 
     /// Appends a single byte.
-    pub fn byte(self: *SqlBuilder, b: u8) errors.ZiteError!void {
+    pub fn byte(self: *SqlBuilder, b: u8) errors.AllocError!void {
         try self.list.append(self.gpa, b);
     }
 
     /// Appends formatted text.
-    pub fn print(self: *SqlBuilder, comptime fmt: []const u8, args: anytype) errors.ZiteError!void {
+    pub fn print(self: *SqlBuilder, comptime fmt: []const u8, args: anytype) errors.AllocError!void {
         try self.list.print(self.gpa, fmt, args);
     }
 
     /// Appends an escaped SQL identifier.
-    pub fn ident(self: *SqlBuilder, name: []const u8) errors.ZiteError!void {
+    pub fn ident(self: *SqlBuilder, name: []const u8) errors.AllocError!void {
         try writeIdent(self.list, self.gpa, name);
     }
 
     /// Appends numbered placeholders (?1, ?2, ...).
-    pub fn placeholders(self: *SqlBuilder, comptime count: usize) errors.ZiteError!void {
+    pub fn placeholders(self: *SqlBuilder, comptime count: usize) errors.AllocError!void {
         try writePlaceholders(self.list, self.gpa, count);
     }
 
     /// Appends insertable column list (skipping PK when configured).
-    pub fn insertColumnList(self: *SqlBuilder, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
+    pub fn insertColumnList(self: *SqlBuilder, comptime T: type, comptime m: meta.Meta) errors.AllocError!void {
         try writeInsertColumnList(self.list, self.gpa, T, m);
     }
 
     /// Appends "col1=?1, col2=?2, ..." update set clause.
-    pub fn updateSetClause(self: *SqlBuilder, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
+    pub fn updateSetClause(self: *SqlBuilder, comptime T: type, comptime m: meta.Meta) errors.AllocError!void {
         try writeUpdateSetClause(self.list, self.gpa, T, m);
     }
 };
 
 /// Writes a quoted SQL identifier, escaping embedded quotes.
-pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) errors.ZiteError!void {
+pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) errors.AllocError!void {
     try list.append(gpa, '"');
     for (name) |ch| {
         if (ch == '"') {
@@ -72,7 +72,7 @@ pub fn writeIdent(list: *ArrayList, gpa: Allocator, name: []const u8) errors.Zit
 }
 
 /// Writes numbered placeholders (?1, ?2, ...).
-pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize) errors.ZiteError!void {
+pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize) errors.AllocError!void {
     comptime var i: usize = 1;
     inline while (i <= count) : (i += 1) {
         if (i != 1) {
@@ -84,7 +84,7 @@ pub fn writePlaceholders(list: *ArrayList, gpa: Allocator, comptime count: usize
 }
 
 /// Writes insertable column list for T, skipping PK if configured.
-pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
+pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.AllocError!void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") {
         @compileError("writeInsertColumnList expects a struct type");
@@ -110,7 +110,7 @@ pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type,
 }
 
 /// Writes UPDATE SET clause for T (excluding PK).
-pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.ZiteError!void {
+pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, comptime m: meta.Meta) errors.AllocError!void {
     const ti = @typeInfo(T);
     if (ti != .@"struct") {
         @compileError("writeUpdateSetClause expects a struct type");

@@ -5,7 +5,7 @@ const types = @import("../../core/types.zig");
 const meta = @import("../../core/meta.zig");
 const errors = @import("../../core/errors.zig");
 
-pub fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: i32) errors.ZiteError!FieldT {
+pub fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: i32) errors.RowReadError!FieldT {
     if (FieldT == types.EpochMillis) {
         return .{ .value = try st.colInt(col) };
     }
@@ -62,7 +62,7 @@ pub fn BorrowedFieldType(comptime FieldT: type) type {
     };
 }
 
-pub fn readValueBorrowed(comptime FieldT: type, st: *Stmt, col: i32) errors.ZiteError!BorrowedFieldType(FieldT) {
+pub fn readValueBorrowed(comptime FieldT: type, st: *Stmt, col: i32) errors.RowReadError!BorrowedFieldType(FieldT) {
     if (FieldT == types.EpochMillis) {
         return .{ .value = try st.colInt(col) };
     }
@@ -99,7 +99,7 @@ pub fn readValueBorrowed(comptime FieldT: type, st: *Stmt, col: i32) errors.Zite
     }
 }
 
-fn intToEnumChecked(comptime E: type, v: i64) errors.ZiteError!E {
+fn intToEnumChecked(comptime E: type, v: i64) errors.RowReadError!E {
     const einfo = @typeInfo(E).@"enum";
     const Tag = einfo.tag_type;
     const tag_value = std.math.cast(Tag, v) orelse return error.UnexpectedColumnType;
@@ -116,7 +116,7 @@ fn intToEnumChecked(comptime E: type, v: i64) errors.ZiteError!E {
     return error.UnexpectedColumnType;
 }
 
-pub fn readStruct(comptime T: type, st: *Stmt, allocator: std.mem.Allocator) errors.ZiteError!T {
+pub fn readStruct(comptime T: type, st: *Stmt, allocator: std.mem.Allocator) errors.RowReadError!T {
     const ti = @typeInfo(T);
     if (ti != .@"struct") {
         @compileError("readStruct expects a struct type");

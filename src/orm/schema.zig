@@ -68,7 +68,7 @@ fn isPrimaryKeyField(comptime field_name: []const u8, opts: CreateTableOptions) 
 }
 
 /// Builds a CREATE TABLE statement for the given struct type.
-pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: CreateTableOptions) errors.ZiteError![]u8 {
+pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: CreateTableOptions) errors.SchemaError![]u8 {
     const info = @typeInfo(T);
     if (info != .@"struct") {
         @compileError("createTableSql expects a struct type");
@@ -126,7 +126,7 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
 }
 
 /// Builds a CREATE TABLE statement using T.Meta.
-pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) errors.ZiteError![]u8 {
+pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) errors.SchemaError![]u8 {
     const m = comptime meta.getMeta(T);
     const info = @typeInfo(T);
     if (info != .@"struct") {

@@ -29,7 +29,7 @@ pub const Stmt = struct {
 
     /// Prepares a SQL statement. Must be finalized when no longer used.
     /// Caller owns the statement and must call `deinit()`.
-    pub fn init(db: *Db, sql: []const u8) errors.ZiteError!Self {
+    pub fn init(db: *Db, sql: []const u8) errors.StmtError!Self {
         var stmt_opt: ?raw.StmtHandle = null;
 
         const n: i32 = @intCast(sql.len);
@@ -49,14 +49,14 @@ pub const Stmt = struct {
     }
 
     /// Finalizes the underlying SQLite statement (idempotent).
-    pub fn finalize(self: *Self) errors.ZiteError!void {
+    pub fn finalize(self: *Self) errors.StmtError!void {
         if (self.finalized) {
             return;
         }
 
         const rc = raw.stmt.finalize(self.stmt);
         self.finalized = true;
-        var unregister_err: ?errors.ZiteError = null;
+        var unregister_err: ?errors.DbError = null;
         self.db.unregisterStmt() catch |err| {
             unregister_err = err;
         };
@@ -91,7 +91,7 @@ pub const Stmt = struct {
     }
 
     /// Resets the statement so it can be re-executed.
-    pub fn reset(self: *Self) errors.ZiteError!void {
+    pub fn reset(self: *Self) errors.StmtError!void {
         try self.ensureOpen();
         const rc = raw.stmt.reset(self.stmt);
         if (rc != db_ok) {
@@ -102,7 +102,7 @@ pub const Stmt = struct {
 
     /// Steps the statement. Returns .row for a row, .done when complete.
     /// The caller must read columns before stepping again.
-    pub fn step(self: *Stmt) errors.ZiteError!StepResult {
+    pub fn step(self: *Stmt) errors.StmtError!StepResult {
         try self.ensureOpen();
         const rc = raw.stmt.step(self.stmt);
         return switch (rc) {
@@ -117,7 +117,7 @@ pub const Stmt = struct {
 
     // ---------- bind (1-based index) ----------
     /// Binds NULL to a 1-based parameter index.
-    pub fn bindNull(self: *Self, idx: i32) errors.ZiteError!void {
+    pub fn bindNull(self: *Self, idx: i32) errors.StmtError!void {
         try self.ensureOpen();
         const rc = raw.stmt.bindNull(self.stmt, idx);
         if (rc != db_ok) {
@@ -128,7 +128,7 @@ pub const Stmt = struct {
     }
 
     /// Binds an integer to a 1-based parameter index.
-    pub fn bindInt(self: *Self, idx: i32, value: i64) errors.ZiteError!void {
+    pub fn bindInt(self: *Self, idx: i32, value: i64) errors.StmtError!void {
         try self.ensureOpen();
         const rc = raw.stmt.bindInt64(self.stmt, idx, value);
         if (rc != db_ok) {
@@ -139,7 +139,7 @@ pub const Stmt = struct {
     }
 
     /// Binds a double to a 1-based parameter index.
-    pub fn bindFloat(self: *Self, idx: i32, value: f64) errors.ZiteError!void {
+    pub fn bindFloat(self: *Self, idx: i32, value: f64) errors.StmtError!void {
         try self.ensureOpen();
         const rc = raw.stmt.bindDouble(self.stmt, idx, @as(f64, @floatCast(value)));
         if (rc != db_ok) {
@@ -150,7 +150,7 @@ pub const Stmt = struct {
     }
 
     /// Binds a boolean to a 1-based parameter index.
-    pub fn bindBool(self: *Self, idx: i32, value: bool) errors.ZiteError!void {
+    pub fn bindBool(self: *Self, idx: i32, value: bool) errors.StmtError!void {
         try self.ensureOpen();
         const rc = raw.stmt.bindInt(self.stmt, idx, if (value) 1 else 0);
         if (rc != db_ok) {
@@ -161,7 +161,7 @@ pub const Stmt = struct {
     }
 
     /// Binds a UTF-8 string to a 1-based parameter index.
-    pub fn bindText(self: *Self, idx: i32, value: []const u8) errors.ZiteError!void {
+    pub fn bindText(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
         try self.ensureOpen();
         const n: i32 = @intCast(value.len);
         const rc = raw.stmt.bindText(self.stmt, idx, value.ptr, n);
@@ -173,7 +173,7 @@ pub const Stmt = struct {
     }
 
     /// Binds a blob to a 1-based parameter index.
-    pub fn bindBlob(self: *Self, idx: i32, value: []const u8) errors.ZiteError!void {
+    pub fn bindBlob(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
         try self.ensureOpen();
         const n: i32 = @intCast(value.len);
         const rc = raw.stmt.bindBlob(self.stmt, idx, value.ptr, n);
@@ -187,7 +187,7 @@ pub const Stmt = struct {
     /// General Binding: Supports int/uint/bool/float/enum/optional(?T)
     /// plus types.OwnedText/types.OwnedBlob and types.EpochMillis.
     /// For TEXT/BLOB, use Owned* types (borrowed slices are not accepted).
-    pub fn bindOne(self: *Self, idx: i32, value: anytype) errors.ZiteError!void {
+    pub fn bindOne(self: *Self, idx: i32, value: anytype) errors.StmtError!void {
         const T = @TypeOf(value);
 
         if (T == types.EpochMillis) {
@@ -219,7 +219,7 @@ pub const Stmt = struct {
     /// Rules:
     /// - Parameter indices start at 1 (SQLite convention)
     /// - Supports tuples / regular structs (field order matters)
-    pub fn bindAll(self: *Self, params: anytype) errors.ZiteError!void {
+    pub fn bindAll(self: *Self, params: anytype) errors.StmtError!void {
         const P = @TypeOf(params);
         const ti = @typeInfo(P);
 
@@ -235,31 +235,31 @@ pub const Stmt = struct {
 
     // --------- column (0-based index, valid when step()==.row) ----------
     /// Reads an integer column value.
-    pub fn colInt(self: *Self, col: i32) errors.ZiteError!i64 {
+    pub fn colInt(self: *Self, col: i32) errors.RowReadError!i64 {
         try self.ensureOpen();
         return raw.stmt.columnInt64(self.stmt, col);
     }
 
     /// Reads a boolean column value (0/1).
-    pub fn colBool(self: *Self, col: i32) errors.ZiteError!bool {
+    pub fn colBool(self: *Self, col: i32) errors.RowReadError!bool {
         try self.ensureOpen();
         return raw.stmt.columnInt(self.stmt, col) != 0;
     }
 
     /// Reads a double column value.
-    pub fn colDouble(self: *Stmt, col: i32) errors.ZiteError!f64 {
+    pub fn colDouble(self: *Stmt, col: i32) errors.RowReadError!f64 {
         try self.ensureOpen();
         return raw.stmt.columnDouble(self.stmt, col);
     }
 
     /// Returns true if the column is NULL.
-    pub fn colIsNull(self: *Self, col: i32) errors.ZiteError!bool {
+    pub fn colIsNull(self: *Self, col: i32) errors.RowReadError!bool {
         try self.ensureOpen();
         return raw.stmt.columnType(self.stmt, col) == raw.SQLITE_NULL;
     }
 
     /// Returns an owned copy of TEXT data (caller frees with allocator).
-    pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
+    pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.RowReadError!?[]u8 {
         try self.ensureOpen();
         if (try self.colIsNull(col)) {
             return null;
@@ -282,7 +282,7 @@ pub const Stmt = struct {
 
     /// Returns borrowed TEXT data without copying.
     /// The returned slice is valid only until the next step/reset/finalize.
-    pub fn colTextBorrowed(self: *Self, col: i32) errors.ZiteError!?[]const u8 {
+    pub fn colTextBorrowed(self: *Self, col: i32) errors.RowReadError!?[]const u8 {
         if (try self.colIsNull(col)) {
             return null;
         }
@@ -299,7 +299,7 @@ pub const Stmt = struct {
     }
 
     /// Returns an owned copy of BLOB data (caller frees with allocator).
-    pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.ZiteError!?[]u8 {
+    pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.RowReadError!?[]u8 {
         try self.ensureOpen();
         if (try self.colIsNull(col)) {
             return null;
@@ -322,7 +322,7 @@ pub const Stmt = struct {
 
     /// Returns borrowed BLOB data without copying.
     /// The returned slice is valid only until the next step/reset/finalize.
-    pub fn colBlobBorrowed(self: *Self, col: i32) errors.ZiteError!?[]const u8 {
+    pub fn colBlobBorrowed(self: *Self, col: i32) errors.RowReadError!?[]const u8 {
         if (try self.colIsNull(col)) {
             return null;
         }
@@ -338,7 +338,7 @@ pub const Stmt = struct {
         return src[0..len];
     }
 
-    fn ensureOpen(self: *const Self) errors.ZiteError!void {
+    fn ensureOpen(self: *const Self) errors.StmtError!void {
         if (self.finalized) {
             return error.StatementFinalized;
         }

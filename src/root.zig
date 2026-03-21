@@ -1,6 +1,6 @@
 /// Advanced API: raw sqlite bindings and thin wrappers (db/stmt).
 pub const raw = @import("raw/mod.zig");
-/// Unified error set for this library.
+/// Layered error sets for this library.
 pub const errors = @import("core/errors.zig");
 /// Database connection wrapper.
 pub const Db = @import("db/db.zig").Db;

@@ -2,8 +2,16 @@ const std = @import("std");
 const raw = @import("../raw/mod.zig");
 const errors = @import("../core/errors.zig");
 
-/// Maps SQLite return codes to more specific ZiteError values.
-pub fn mapSqliteRc(rc: i32, fallback: errors.ZiteError) errors.ZiteError {
+fn SqliteRcError(comptime FallbackError: type) type {
+    const info = @typeInfo(FallbackError);
+    if (info != .error_set) {
+        @compileError("mapSqliteRc fallback must be an error value");
+    }
+    return errors.SqliteMappedError || errors.AllocError || FallbackError;
+}
+
+/// Maps SQLite return codes to more specific SQLite-layer errors plus the caller fallback.
+pub fn mapSqliteRc(rc: i32, fallback: anytype) SqliteRcError(@TypeOf(fallback)) {
     return switch (rc) {
         raw.SQLITE_BUSY => error.SqliteBusy,
         raw.SQLITE_CONSTRAINT => error.SqliteConstraint,
