@@ -41,6 +41,6 @@ test "float + EpochMillis: insert -> findById -> findOne" {
     try std.testing.expectApproxEqAbs(@as(f64, 12.5), got.score, 0.000001);
     try std.testing.expectEqual(now.value, got.created_at.value);
 
-    const got2 = (try repo.findOneRaw("\"created_at\"=?1", .{now.value})).?;
+    const got2 = (try repo.findOneSql("\"created_at\"=?1", .{now.value})).?;
     try std.testing.expectEqual(id, got2.id);
 }

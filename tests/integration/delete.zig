@@ -76,7 +76,7 @@ test "mapper.deleteWhere: deletes matching rows" {
     // Bob should still exist
     var bob_name = try orm.types.OwnedText.fromConst(a, "bob");
     defer bob_name.deinit(a);
-    const bob = try repo.findOneRaw("\"name\"=?1", .{bob_name});
+    const bob = try repo.findOneSql("\"name\"=?1", .{bob_name});
     if (bob) |row| {
         var mut = row;
         repo.freeOwnedRow(&mut);
