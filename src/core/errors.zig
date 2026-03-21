@@ -72,6 +72,8 @@ pub const RowReadError = StmtError || error{
 pub const OrmError = RowReadError || error{
     /// WHERE clause must not be empty for destructive operations.
     EmptyWhereClause,
+    /// Raw SQL fragment contains unsafe constructs for guarded raw APIs.
+    UnsafeSqlFragment,
     /// No insertable fields found for INSERT.
     NoInsertableFields,
     /// No updatable fields found for UPDATE.

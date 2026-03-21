@@ -196,15 +196,28 @@ pub fn Repository(comptime T: type) type {
             return q.firstHandle();
         }
 
-        pub fn findOneRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?T {
+        pub fn findOneSql(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?T {
+            try validateWhereRawFragment(where_clause);
             return mapper.findOne(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
         }
 
-        pub fn findOneHandleRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?RowHandle(T) {
+        pub fn findOneSqlUnsafe(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?T {
+            return mapper.findOne(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
+        }
+
+        pub fn findOneHandleSql(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?RowHandle(T) {
             var q = self.query();
             // Safe: q.deinit() does not touch the statement owned by returned RowHandle.
             defer q.deinit();
-            try q.whereRaw(where_clause, params);
+            try q.whereSql(where_clause, params);
+            return q.firstHandle();
+        }
+
+        pub fn findOneHandleSqlUnsafe(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?RowHandle(T) {
+            var q = self.query();
+            // Safe: q.deinit() does not touch the statement owned by returned RowHandle.
+            defer q.deinit();
+            try q.whereSqlUnsafe(where_clause, params);
             return q.firstHandle();
         }
 
@@ -324,10 +337,17 @@ pub fn Query(comptime T: type) type {
             try self.appendParam(value);
         }
 
-        /// Appends a raw WHERE fragment and binds params using fragment-local
+        /// Appends a SQL WHERE fragment and binds params using fragment-local
         /// placeholder numbering. `?1`, `?2`, and bare `?` are rebased against
         /// the query's existing parameter count before prepare/bind.
-        pub fn whereRaw(self: *Self, sql: []const u8, params: anytype) errors.OrmError!void {
+        pub fn whereSql(self: *Self, sql: []const u8, params: anytype) errors.OrmError!void {
+            try validateWhereRawFragment(sql);
+            return self.whereSqlUnsafe(sql, params);
+        }
+
+        /// Appends an unchecked SQL WHERE fragment and binds params.
+        /// Callers must guarantee `sql` is trusted.
+        pub fn whereSqlUnsafe(self: *Self, sql: []const u8, params: anytype) errors.OrmError!void {
             const trimmed = std.mem.trim(u8, sql, " \t\r\n");
             const where_len_before = self.where_buf.items.len;
             const params_len_before = self.params.items.len;
@@ -551,6 +571,115 @@ fn bindQueryParam(st: *Stmt, idx: i32, p: QueryParam) errors.OrmError!void {
     }
 }
 
+fn validateWhereRawFragment(sql: []const u8) errors.OrmError!void {
+    for (sql) |ch| {
+        if (ch == 0) {
+            return error.UnsafeSqlFragment;
+        }
+    }
+
+    var state: SqlScanState = .code;
+    var i: usize = 0;
+
+    while (i < sql.len) {
+        switch (state) {
+            .code => {
+                const ch = sql[i];
+                if (ch == ';') {
+                    return error.UnsafeSqlFragment;
+                }
+                if (ch == '-' and i + 1 < sql.len and sql[i + 1] == '-') {
+                    return error.UnsafeSqlFragment;
+                }
+                if (ch == '/' and i + 1 < sql.len and sql[i + 1] == '*') {
+                    return error.UnsafeSqlFragment;
+                }
+                if (ch == '*' and i + 1 < sql.len and sql[i + 1] == '/') {
+                    return error.UnsafeSqlFragment;
+                }
+                if (ch == '\'') {
+                    state = .single_quote;
+                    i += 1;
+                    continue;
+                }
+                if (ch == '"') {
+                    state = .double_quote;
+                    i += 1;
+                    continue;
+                }
+                if (isIdentStart(ch)) {
+                    const start = i;
+                    i += 1;
+                    while (i < sql.len and isIdentContinue(sql[i])) : (i += 1) {}
+                    if (isDangerousSqlKeyword(sql[start..i])) {
+                        return error.UnsafeSqlFragment;
+                    }
+                    continue;
+                }
+                i += 1;
+            },
+            .single_quote => {
+                const ch = sql[i];
+                i += 1;
+                if (ch == '\'') {
+                    if (i < sql.len and sql[i] == '\'') {
+                        i += 1;
+                    } else {
+                        state = .code;
+                    }
+                }
+            },
+            .double_quote => {
+                const ch = sql[i];
+                i += 1;
+                if (ch == '"') {
+                    if (i < sql.len and sql[i] == '"') {
+                        i += 1;
+                    } else {
+                        state = .code;
+                    }
+                }
+            },
+            .line_comment, .block_comment => unreachable,
+        }
+    }
+}
+
+fn isIdentStart(ch: u8) bool {
+    return std.ascii.isAlphabetic(ch) or ch == '_';
+}
+
+fn isIdentContinue(ch: u8) bool {
+    return std.ascii.isAlphanumeric(ch) or ch == '_';
+}
+
+fn isDangerousSqlKeyword(word: []const u8) bool {
+    const blocked = [_][]const u8{
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "DROP",
+        "ALTER",
+        "CREATE",
+        "ATTACH",
+        "DETACH",
+        "PRAGMA",
+        "VACUUM",
+        "REINDEX",
+        "ANALYZE",
+        "WITH",
+        "UNION",
+    };
+
+    inline for (blocked) |kw| {
+        if (std.ascii.eqlIgnoreCase(word, kw)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 fn appendRebasedWhereSql(
     allocator: std.mem.Allocator,
     out: *std.ArrayList(u8),
@@ -709,4 +838,17 @@ test "orm: appendRebasedWhereSql keeps question marks inside live quotes untouch
         "'ab?cd' = note AND \"co?l\" = ?4 AND name = 'x''?''y'",
         out.items,
     );
+}
+
+test "orm: validateWhereRawFragment accepts simple predicates" {
+    try validateWhereRawFragment("\"name\"=?1");
+    try validateWhereRawFragment("\"age\" > ?1 AND \"name\" = ?2");
+    try validateWhereRawFragment("\"age\" IS NULL");
+}
+
+test "orm: validateWhereRawFragment rejects unsafe fragments" {
+    try std.testing.expectError(error.UnsafeSqlFragment, validateWhereRawFragment("1=1; DROP TABLE users"));
+    try std.testing.expectError(error.UnsafeSqlFragment, validateWhereRawFragment("1=1 -- force"));
+    try std.testing.expectError(error.UnsafeSqlFragment, validateWhereRawFragment("\"id\" IN (SELECT id FROM users)"));
+    try std.testing.expectError(error.UnsafeSqlFragment, validateWhereRawFragment("\"id\" = ?1 UNION \"id\" = ?2"));
 }

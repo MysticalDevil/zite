@@ -142,7 +142,7 @@ pub const AsyncPool = struct {
         const Runner = struct {
             fn run(db: *Db, ctx: Context) errors.OrmError!?T {
                 var repo = orm.repository(T, db, ctx.owned_allocator);
-                return repo.findOneRaw(ctx.where_clause, ctx.params);
+                return repo.findOneSql(ctx.where_clause, ctx.params);
             }
         };
         return self.withConnection(io, Context{
