@@ -1,6 +1,5 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const Db = @import("db.zig").Db;
 
 fn sqlSnippet(sql: []const u8) []const u8 {
     const max: usize = 200;
@@ -14,15 +13,15 @@ fn enabledInThisBuild() bool {
     return !builtin.is_test;
 }
 
-/// Logs a sqlite failure with optional SQL snippet (if enabled).
-pub fn logSqlite(db: *Db, rc: i32, comptime what: []const u8, sql: ?[]const u8) void {
+/// Logs a driver failure with optional SQL snippet (if enabled).
+pub fn logSqlite(db: anytype, rc: i32, comptime what: []const u8, sql: ?[]const u8) void {
     if (!enabledInThisBuild()) {
         return;
     }
 
-    std.log.warn("sqlite failure what={s} rc={} msg={s}", .{ what, rc, db.errmsg() });
+    std.log.warn("driver failure what={s} rc={} msg={s}", .{ what, rc, db.errmsg() });
     if (sql) |s| {
-        std.log.warn("sqlite sql={s}", .{sqlSnippet(s)});
+        std.log.warn("driver sql={s}", .{sqlSnippet(s)});
     }
 }
 
@@ -31,5 +30,5 @@ pub fn logBind(comptime kind: []const u8, idx: i32) void {
     if (!enabledInThisBuild()) {
         return;
     }
-    std.log.warn("sqlite bind idx={} kind={s}", .{ idx, kind });
+    std.log.warn("driver bind idx={} kind={s}", .{ idx, kind });
 }
