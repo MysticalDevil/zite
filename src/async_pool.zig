@@ -252,6 +252,6 @@ const GuardRow = struct {
 
 test "async_pool: result type guard allows owned rows and rejects borrowed rows" {
     try std.testing.expect(isAsyncResultAllowed(orm.OwnedRow(GuardRow)));
-    try std.testing.expect(!isAsyncResultAllowed(orm.BorrowedOne(GuardRow)));
-    try std.testing.expect(!isAsyncResultAllowed(orm.BorrowedRow(GuardRow)));
+    try std.testing.expect(!isAsyncResultAllowed(orm.RowHandle(GuardRow)));
+    try std.testing.expect(!isAsyncResultAllowed(orm.RowView(GuardRow)));
 }

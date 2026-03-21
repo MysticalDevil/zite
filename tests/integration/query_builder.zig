@@ -95,7 +95,7 @@ test "orm.query: orderBy supports multi-column sort" {
     try std.testing.expectEqualStrings("b", rows[2].value.name.value);
 }
 
-test "orm.query: iterateBorrowed and repo borrowed lookups are zero-copy" {
+test "orm.query: iterateViews and row handle lookups are zero-copy" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -117,7 +117,7 @@ test "orm.query: iterateBorrowed and repo borrowed lookups are zero-copy" {
     defer q.deinit();
     try q.orderBy("id", .asc);
 
-    var rows = try q.iterateBorrowed();
+    var rows = try q.iterateViews();
     defer rows.deinit();
 
     const r1 = (try rows.next()).?;
@@ -129,7 +129,7 @@ test "orm.query: iterateBorrowed and repo borrowed lookups are zero-copy" {
     try std.testing.expectEqual(@as(i64, 22), (try r2.get("age")).?);
     try std.testing.expect((try rows.next()) == null);
 
-    if (try repo.findByIdBorrowed(@as(i64, 2))) |one| {
+    if (try repo.findByIdHandle(@as(i64, 2))) |one| {
         var got = one;
         defer got.deinit();
         try std.testing.expectEqualStrings("bob", try got.get("name"));
@@ -137,7 +137,7 @@ test "orm.query: iterateBorrowed and repo borrowed lookups are zero-copy" {
         return error.TestExpectedRow;
     }
 
-    if (try repo.findOneBorrowedRaw("\"name\"=?1", .{"alice"})) |one_raw| {
+    if (try repo.findOneHandleRaw("\"name\"=?1", .{"alice"})) |one_raw| {
         var got_raw = one_raw;
         defer got_raw.deinit();
         try std.testing.expectEqual(@as(i64, 1), try got_raw.get("id"));
@@ -167,12 +167,12 @@ test "orm.query: borrowed row becomes stale after iterator advances" {
     var q = repo.query();
     defer q.deinit();
     try q.orderBy("id", .asc);
-    var rows = try q.iterateBorrowed();
+    var rows = try q.iterateViews();
     defer rows.deinit();
 
     const r1 = (try rows.next()).?;
     _ = try rows.next();
-    try std.testing.expectError(error.BorrowedRowStale, r1.get("name"));
+    try std.testing.expectError(error.RowViewStale, r1.get("name"));
 }
 
 test "orm.query: borrowed one is invalid after deinit" {
@@ -189,7 +189,7 @@ test "orm.query: borrowed one is invalid after deinit" {
     defer n1.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
 
-    var one = (try repo.findByIdBorrowed(@as(i64, 1))).?;
+    var one = (try repo.findByIdHandle(@as(i64, 1))).?;
     one.deinit();
     try std.testing.expectError(error.StatementFinalized, one.get("name"));
 }

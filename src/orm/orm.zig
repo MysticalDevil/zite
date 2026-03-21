@@ -18,25 +18,25 @@ pub const OrderDir = enum {
     desc,
 };
 
-pub fn BorrowedRow(comptime T: type) type {
+pub fn RowView(comptime T: type) type {
     return struct {
-        owner: *RowsBorrowed(T),
+        owner: *RowCursor(T),
         row_generation: usize,
 
         const Self = @This();
         const m = meta.getMeta(T);
 
-        pub fn get(self: Self, comptime field: []const u8) errors.RowReadError!BorrowedFieldType(T, field) {
+        pub fn get(self: Self, comptime field: []const u8) errors.RowReadError!ViewFieldType(T, field) {
             try self.owner.ensureRowAlive(self.row_generation);
             const col = comptime fieldColumnIndex(field);
             const FieldT = comptime fieldType(field);
-            return engine.row.readValueBorrowed(FieldT, &self.owner.st, @as(i32, @intCast(col)));
+            return engine.row.readValueView(FieldT, &self.owner.st, @as(i32, @intCast(col)));
         }
 
         fn fieldType(comptime field: []const u8) type {
             const ti = @typeInfo(T);
             if (ti != .@"struct") {
-                @compileError("BorrowedRow requires a struct model");
+                @compileError("RowView requires a struct model");
             }
 
             inline for (ti.@"struct".fields) |f| {
@@ -53,7 +53,7 @@ pub fn BorrowedRow(comptime T: type) type {
         fn fieldColumnIndex(comptime field: []const u8) usize {
             const ti = @typeInfo(T);
             if (ti != .@"struct") {
-                @compileError("BorrowedRow requires a struct model");
+                @compileError("RowView requires a struct model");
             }
 
             comptime var col: usize = 0;
@@ -71,11 +71,11 @@ pub fn BorrowedRow(comptime T: type) type {
     };
 }
 
-pub fn BorrowedFieldType(comptime T: type, comptime field: []const u8) type {
+pub fn ViewFieldType(comptime T: type, comptime field: []const u8) type {
     const m = meta.getMeta(T);
     const ti = @typeInfo(T);
     if (ti != .@"struct") {
-        @compileError("BorrowedFieldType requires a struct model");
+        @compileError("ViewFieldType requires a struct model");
     }
 
     inline for (ti.@"struct".fields) |f| {
@@ -83,7 +83,7 @@ pub fn BorrowedFieldType(comptime T: type, comptime field: []const u8) type {
             if (comptime meta.isSkipped(f.name, m)) {
                 @compileError("Field " ++ field ++ " is skipped in Meta");
             }
-            return engine.row.BorrowedFieldType(f.type);
+            return engine.row.ViewFieldType(f.type);
         }
     }
     @compileError("Unknown field for " ++ @typeName(T) ++ ": " ++ field);
@@ -106,15 +106,15 @@ const SqlScanState = enum {
     block_comment,
 };
 
-pub fn BorrowedOne(comptime T: type) type {
+pub fn RowHandle(comptime T: type) type {
     return struct {
-        rows: RowsBorrowed(T),
+        rows: RowCursor(T),
         row_generation: usize,
 
         const Self = @This();
 
-        pub fn get(self: *Self, comptime field: []const u8) errors.RowReadError!BorrowedFieldType(T, field) {
-            return (BorrowedRow(T){
+        pub fn get(self: *Self, comptime field: []const u8) errors.RowReadError!ViewFieldType(T, field) {
+            return (RowView(T){
                 .owner = &self.rows,
                 .row_generation = self.row_generation,
             }).get(field);
@@ -186,26 +186,26 @@ pub fn Repository(comptime T: type) type {
             return null;
         }
 
-        pub fn findByIdBorrowed(self: *Self, id: anytype) errors.OrmError!?BorrowedOne(T) {
+        pub fn findByIdHandle(self: *Self, id: anytype) errors.OrmError!?RowHandle(T) {
             const pk_field = comptime meta.getMeta(T).primary_key;
             var q = self.query();
             // Safe: q.deinit() only releases query builder buffers.
-            // firstBorrowed() transfers a prepared statement into BorrowedOne.rows.
+            // firstHandle() transfers a prepared statement into RowHandle.rows.
             defer q.deinit();
             try q.whereEq(pk_field, id);
-            return q.firstBorrowed();
+            return q.firstHandle();
         }
 
         pub fn findOneRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?T {
             return mapper.findOne(T, @TypeOf(params), self.db, self.owned_allocator, where_clause, params);
         }
 
-        pub fn findOneBorrowedRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?BorrowedOne(T) {
+        pub fn findOneHandleRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!?RowHandle(T) {
             var q = self.query();
-            // Safe: q.deinit() does not touch the statement owned by returned BorrowedOne.
+            // Safe: q.deinit() does not touch the statement owned by returned RowHandle.
             defer q.deinit();
             try q.whereRaw(where_clause, params);
-            return q.firstBorrowed();
+            return q.firstHandle();
         }
 
         pub fn findManyRaw(self: *Self, where_clause: []const u8, params: anytype) errors.OrmError!mapper.Rows(T) {
@@ -226,7 +226,7 @@ pub fn Repository(comptime T: type) type {
     };
 }
 
-pub fn RowsBorrowed(comptime T: type) type {
+pub fn RowCursor(comptime T: type) type {
     return struct {
         st: Stmt,
         done: bool = false,
@@ -238,7 +238,7 @@ pub fn RowsBorrowed(comptime T: type) type {
             self.closeAndInvalidate();
         }
 
-        pub fn next(self: *Self) errors.RowReadError!?BorrowedRow(T) {
+        pub fn next(self: *Self) errors.RowReadError!?RowView(T) {
             if (self.done) {
                 return null;
             }
@@ -265,7 +265,7 @@ pub fn RowsBorrowed(comptime T: type) type {
                 return error.StatementFinalized;
             }
             if (self.cursor_generation != row_generation) {
-                return error.BorrowedRowStale;
+                return error.RowViewStale;
             }
         }
 
@@ -385,10 +385,10 @@ pub fn Query(comptime T: type) type {
             return rows.next();
         }
 
-        pub fn firstBorrowed(self: *Self) errors.OrmError!?BorrowedOne(T) {
-            var rows = try self.iterateBorrowedWithLimit(1);
+        pub fn firstHandle(self: *Self) errors.OrmError!?RowHandle(T) {
+            var rows = try self.iterateViewsWithLimit(1);
             if (try rows.next()) |row| {
-                // Move rows (and its prepared statement) into BorrowedOne.
+                // Move rows (and its prepared statement) into RowHandle.
                 return .{
                     .rows = rows,
                     .row_generation = row.row_generation,
@@ -401,8 +401,8 @@ pub fn Query(comptime T: type) type {
             return self.iterateOwnedWithLimit(self.limit);
         }
 
-        pub fn iterateBorrowed(self: *Self) errors.OrmError!RowsBorrowed(T) {
-            return self.iterateBorrowedWithLimit(self.limit);
+        pub fn iterateViews(self: *Self) errors.OrmError!RowCursor(T) {
+            return self.iterateViewsWithLimit(self.limit);
         }
 
         pub fn allOwned(self: *Self) errors.OrmError![]OwnedRow(T) {
@@ -443,7 +443,7 @@ pub fn Query(comptime T: type) type {
             };
         }
 
-        fn iterateBorrowedWithLimit(self: *Self, limit_override: ?usize) errors.OrmError!RowsBorrowed(T) {
+        fn iterateViewsWithLimit(self: *Self, limit_override: ?usize) errors.OrmError!RowCursor(T) {
             const opts: engine.sql.FindManyOptions = .{
                 .order_by = if (self.order_buf.items.len == 0) null else self.order_buf.items,
                 .limit = if (limit_override) |n| n else self.limit,

@@ -45,7 +45,7 @@ pub fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator,
     }
 }
 
-pub fn BorrowedFieldType(comptime FieldT: type) type {
+pub fn ViewFieldType(comptime FieldT: type) type {
     if (FieldT == types.OwnedText) {
         return []const u8;
     }
@@ -57,12 +57,12 @@ pub fn BorrowedFieldType(comptime FieldT: type) type {
     }
 
     return switch (@typeInfo(FieldT)) {
-        .optional => |o| ?BorrowedFieldType(o.child),
+        .optional => |o| ?ViewFieldType(o.child),
         else => FieldT,
     };
 }
 
-pub fn readValueBorrowed(comptime FieldT: type, st: *Stmt, col: i32) errors.RowReadError!BorrowedFieldType(FieldT) {
+pub fn readValueView(comptime FieldT: type, st: *Stmt, col: i32) errors.RowReadError!ViewFieldType(FieldT) {
     if (FieldT == types.EpochMillis) {
         return .{ .value = try st.colInt(col) };
     }
@@ -79,7 +79,7 @@ pub fn readValueBorrowed(comptime FieldT: type, st: *Stmt, col: i32) errors.RowR
                 return null;
             }
             const Child = o.child;
-            return try readValueBorrowed(Child, st, col);
+            return try readValueView(Child, st, col);
         },
         .bool => return try st.colBool(col),
         .int => {

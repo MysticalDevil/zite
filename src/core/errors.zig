@@ -64,8 +64,8 @@ pub const RowReadError = StmtError || error{
     UnexpectedColumnType,
     /// Column was NULL when a non-optional value was required.
     UnexpectedNull,
-    /// Borrowed row/view accessed after iterator advanced to another row.
-    BorrowedRowStale,
+    /// Row view accessed after the cursor advanced to another row.
+    RowViewStale,
 };
 
 /// ORM and query builder invariants layered on top of statement and row errors.
