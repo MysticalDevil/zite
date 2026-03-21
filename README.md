@@ -67,9 +67,11 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 | ORM upsert | `repo.upsert` | Returns `.inserted` or `.updated`. |
 | Query builder | `repo.query()` | Builder with `whereEq/whereRaw/orderBy/limit/offset`. |
 | Find by id | `repo.findByIdOwned` | `OwnedRow(T)` or `null`. |
+| Row handle | `repo.findByIdHandle` | `RowHandle(T)` for single-row zero-copy access. |
+| Row cursor | `q.iterateViews()` | `RowCursor(T)` for zero-copy row views. |
 | Transactions | `repo.beginTx(.deferred)` | `commit()` / `rollback()` or automatic rollback on `deinit()`. |
 | Schema | `zite.schema.createTableSqlFromMeta` | CREATE TABLE from `Meta`. |
-| Errors | `zite.errors.ZiteError` | Unified error set. |
+| Errors | `zite.errors.*Error` | Layered error sets by subsystem (`DbError`, `StmtError`, `OrmError`, ...). |
 
 ## API Stability
 
@@ -178,6 +180,33 @@ var rows = try q.iterateOwned();
 defer rows.deinit();
 ```
 
+## Zero-Copy Row Access
+
+Use row views when you want zero-copy access to the current statement row.
+
+- `q.iterateViews()` returns a `RowCursor(T)`.
+- `cursor.next()` returns a `RowView(T)` for the current row.
+- `repo.findByIdHandle(...)` and `repo.findOneHandleRaw(...)` return a `RowHandle(T)` for single-row access.
+
+Lifecycle rules:
+- `RowView` is valid only until the cursor advances or is deinitialized.
+- `RowHandle` owns the underlying statement and remains valid until `deinit()`.
+- Access after cursor advance returns `error.RowViewStale`.
+- Access after handle/cursor teardown returns `error.StatementFinalized`.
+
+```zig
+var q = repo.query();
+defer q.deinit();
+try q.orderBy("id", .asc);
+
+var cursor = try q.iterateViews();
+defer cursor.deinit();
+
+while (try cursor.next()) |row| {
+    std.debug.print("{s}\n", .{try row.get("name")});
+}
+```
+
 ## Bulk Insert
 
 Use `insertMany` to insert multiple rows with one prepared statement.
@@ -216,7 +245,7 @@ shared connection, can still observe a race.
 Important constraints:
 - It does not make sqlite itself non-blocking; it schedules blocking work.
 - Each task opens its own `Db`.
-- Borrowed results are not allowed across the async boundary.
+- `RowView` / `RowHandle` / `RowCursor` values are not allowed across the async boundary.
 - `AsyncPool.findOne` returns an owned value; free it with `zite.AsyncPool.freeOwnedRow`.
 - SQLite still behaves like SQLite: a single file-backed database supports many
   readers, but write concurrency is still limited by database locking.
@@ -268,11 +297,21 @@ operations return `error.StatementFinalized`.
 
 ## Errors
 
-All public APIs return `errors.ZiteError`. SQLite return codes are mapped to
-specific errors (busy, constraint, io, etc.) where possible.
+Public APIs now return layered error sets instead of one catch-all set.
+
+- `errors.DbError`: database open/exec/transaction/lifecycle failures.
+- `errors.StmtError`: statement prepare/bind/step/finalize failures.
+- `errors.RowReadError`: row-view lifecycle and column decoding failures.
+- `errors.OrmError`: ORM/query invariants layered on top of row/statement failures.
+- `errors.AsyncOrmError`: async boundary failures plus propagated ORM errors.
+- `errors.SchemaError`: schema SQL generation allocation failures.
+
+SQLite return codes are still mapped to specific errors such as
+`error.SqliteBusy`, `error.SqliteConstraint`, and `error.SqliteIo`.
 
 Notable behavior-specific errors:
-- `error.StatementFinalized`: statement used after `deinit()`/`finalize()`.
+- `error.StatementFinalized`: statement or row-backed handle used after `deinit()`/`finalize()`.
+- `error.RowViewStale`: a `RowView` was accessed after its cursor advanced.
 - `error.EmptyWhereClause`: `deleteWhereRaw` called with empty WHERE.
 - `error.UnexpectedExtraRows`: `findOne`/`findById` observed more rows than expected.
 

@@ -183,7 +183,7 @@ fn payloadType(comptime MaybeErrorUnion: type) type {
 
 fn assertAsyncResultAllowed(comptime T: type) void {
     if (!isAsyncResultAllowed(T)) {
-        @compileError("async_pool functions must not return borrowed row/stmt/db state: " ++ @typeName(T));
+        @compileError("async_pool functions must not return row-view, cursor, stmt, or db state: " ++ @typeName(T));
     }
 }
 
@@ -250,7 +250,7 @@ const GuardRow = struct {
     };
 };
 
-test "async_pool: result type guard allows owned rows and rejects borrowed rows" {
+test "async_pool: result type guard allows owned rows and rejects row views" {
     try std.testing.expect(isAsyncResultAllowed(orm.OwnedRow(GuardRow)));
     try std.testing.expect(!isAsyncResultAllowed(orm.RowHandle(GuardRow)));
     try std.testing.expect(!isAsyncResultAllowed(orm.RowView(GuardRow)));

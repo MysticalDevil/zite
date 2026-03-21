@@ -50,13 +50,13 @@ pub const StmtError = DbError || error{
     SqliteBindFailed,
     /// Unsupported type passed to bindOne.
     UnsupportedBindType,
-    /// Borrowed row/view accessed after its statement was finalized.
+    /// Row-backed handle or view accessed after its statement was finalized.
     StatementFinalized,
     /// bindAll expects a struct/tuple.
     BindAllExpectedStructOrTuple,
 };
 
-/// Row decoding and borrowed row validity errors.
+/// Row decoding and row-view lifetime errors.
 pub const RowReadError = StmtError || error{
     /// Unsupported field type for column reads.
     UnsupportedColumnType,

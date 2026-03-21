@@ -147,7 +147,7 @@ test "orm.query: iterateViews and row handle lookups are zero-copy" {
     }
 }
 
-test "orm.query: borrowed row becomes stale after iterator advances" {
+test "orm.query: row view becomes stale after cursor advances" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -175,7 +175,7 @@ test "orm.query: borrowed row becomes stale after iterator advances" {
     try std.testing.expectError(error.RowViewStale, r1.get("name"));
 }
 
-test "orm.query: borrowed one is invalid after deinit" {
+test "orm.query: row handle is invalid after deinit" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();

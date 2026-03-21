@@ -9,7 +9,7 @@ Zite has a layered architecture:
 
 - `src/raw/`: direct SQLite FFI bindings.
 - `src/db/`: safe connection/statement wrappers (`Db`, `Stmt`, `Tx`).
-- `src/core/`: shared types, metadata, SQL string helpers, unified errors.
+- `src/core/`: shared types, metadata, SQL string helpers, layered errors.
 - `src/async_pool.zig`: experimental `std.Io`-based task execution layer.
 - `src/orm/`: typed repository/query APIs.
 - `src/orm/engine/`: internal SQL assembly, bind/step, row decoding.
@@ -87,18 +87,18 @@ repo.findOneRaw(...)
   -> orm.engine.row.readStruct
   -> returns T or error.UnexpectedExtraRows
 
-Execution path: Query borrowed iteration
+Execution path: Query row-view iteration
 ----------------------------------------
-repo.query().iterateBorrowed()
-  -> orm.Query.iterateBorrowedWithLimit
+repo.query().iterateViews()
+  -> orm.Query.iterateViewsWithLimit
   -> orm.engine.sql.buildFindManySql
   -> db.Stmt.prepare/bind
-  -> orm.RowsBorrowed.next()
-  -> orm.BorrowedRow.get(...)
-  -> orm.engine.row.readValueBorrowed(...)
+  -> orm.RowCursor.next()
+  -> orm.RowView.get(...)
+  -> orm.engine.row.readValueView(...)
   -> lifecycle guard:
        - error.StatementFinalized if stmt closed
-       - error.BorrowedRowStale if cursor advanced
+       - error.RowViewStale if cursor advanced
 
 Execution path: Transaction
 ---------------------------
@@ -129,11 +129,12 @@ pool.findByIdOwned(io, T, allocator, id)
 ## Ownership and Safety Invariants
 
 - `OwnedText`/`OwnedBlob` are explicitly owned and must be deinitialized.
-- Borrowed query values are valid only for the current statement row.
+- `RowView` values are valid only for the current statement row on the current cursor generation.
+- `RowHandle` owns a prepared statement and exposes field access through an internal `RowView`.
 - Statement operations after `deinit()`/`finalize()` return `error.StatementFinalized`.
 - Destructive delete-with-where APIs reject empty where clauses (`error.EmptyWhereClause`).
 - `findOne`/`findById` guard cardinality and return `error.UnexpectedExtraRows` if violated.
-- `AsyncPool` never returns borrowed row/view state; async boundaries are owned-only.
+- `AsyncPool` never returns `RowView`, `RowCursor`, or `RowHandle`; async boundaries are owned-only.
 
 ## Why This Shape
 
