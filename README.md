@@ -14,8 +14,7 @@ Typed SQLite access for Zig with a small ORM layer and explicit ownership rules.
 
 ## Install
 
-This repo is a Zig module. Add it via the Zig package manager, then integrate it in `build.zig`
-and link sqlite.
+This repo is a Zig module. Add it via the Zig package manager, then integrate it in `build.zig`.
 
 ### 1. Add dependency
 
@@ -39,6 +38,8 @@ const exe = b.addExecutable(.{
 const zite_dep = b.dependency("zite", .{
     .target = target,
     .optimize = optimize,
+    // Optional: defaults to .system (libsqlite3).
+    // .sqlite_backend = .pure,
 });
 const zite = zite_dep.module("zite");
 
@@ -48,19 +49,20 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 
 ### Notes
 
-- Requires system `sqlite3` development headers and library.
-- The consuming executable/test must set `link_libc = true`.
-- Add `linkSystemLibrary("sqlite3")` to the final executable/test target.
+- Backend selection is build-time pluggable via `-Dsqlite_backend=system|pure`.
+- Default backend is `system` (libsqlite3).
+- For `system`, link system sqlite3 on your final executable/test target.
+- For `pure`, do not link system sqlite3.
 
 ## API Quick Reference
 
 | Area | Entry Point | Notes |
 | --- | --- | --- |
-| Database | `zite.Db.open` / `db.deinit` | Opens/closes a SQLite connection. |
-| Transactions (types) | `zite.TxMode`, `zite.Tx` | Public transaction mode/handle types. |
-| Statements | `zite.Stmt.init` / `st.deinit` | Prepared statement wrapper. |
-| Async execution | `zite.AsyncPool.init` | Experimental `std.Io`-based execution layer. |
-| ORM repository | `zite.orm.repository(User, &db, a)` | Creates a typed repository for `User`. |
+| Database | `zite.Db(Driver).open` / `db.deinit` | Opens/closes a connection for selected driver. |
+| Transactions (types) | `zite.Db(Driver).TxMode`, `zite.Db(Driver).Tx` | Driver-bound transaction mode/handle types. |
+| Statements | `zite.Stmt(Driver).init` / `st.deinit` | Driver-bound prepared statement wrapper. |
+| Async execution | `zite.AsyncPool(Driver).init` | Experimental `std.Io`-based execution layer. |
+| ORM repository | `zite.orm(Driver).repository(User, &db, a)` | Creates a typed repository for `User`. |
 | ORM insert | `repo.insert` | Returns last insert rowid. |
 | ORM insert many | `repo.insertMany` | Inserts multiple rows and returns count. |
 | ORM update | `repo.update` | Returns rows changed. |
@@ -77,9 +79,9 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 
 ## API Stability
 
-- Stable: `Db`, `Stmt`, `orm`, `schema`, `types`, `errors`.
+- Stable: `Db(Driver)`, `Stmt(Driver)`, `orm(Driver)`, `schema`, `types`, `errors`.
 - Experimental: `AsyncPool` / `async_pool`. Built for Zig `0.16/master` `std.Io`; API may change.
-- Advanced/Low-level: `raw`, `sqlutil`, `meta`. These are exposed for power users
+- Advanced/Low-level: `drivers.sqlite3`, `sqlutil`, `meta`. These are exposed for power users
   but may change when internals evolve.
 - Internal: `src/orm/engine.zig` and `src/orm/engine/*` are implementation details used by `orm` and are
   not part of the public API contract.
@@ -89,6 +91,9 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 ```zig
 const std = @import("std");
 const zite = @import("zite");
+const Driver = zite.drivers.sqlite3;
+const Db = zite.Db(Driver);
+const Orm = zite.orm(Driver);
 
 const OwnedText = zite.types.OwnedText;
 const EpochMillis = zite.types.EpochMillis;
@@ -109,9 +114,9 @@ pub fn main() !void {
     defer _ = debug_allocator.deinit();
     const a = debug_allocator.allocator();
 
-    var db = try zite.Db.open(a, ":memory:");
+    var db = try Db.open(a, ":memory:");
     defer db.deinit();
-    var repo = zite.orm.repository(User, &db, a);
+    var repo = Orm.repository(User, &db, a);
 
     const ddl = try zite.schema.createTableSqlFromMeta(a, User);
     defer a.free(ddl);
@@ -265,8 +270,11 @@ Important constraints:
   readers, but write concurrency is still limited by database locking.
 
 ```zig
+const Driver = zite.drivers.sqlite3;
+const AsyncPool = zite.AsyncPool(Driver);
+
 pub fn main(init: std.process.Init) !void {
-    var pool = try zite.AsyncPool.init(init.gpa, "app.sqlite", .{});
+    var pool = try AsyncPool.init(init.gpa, "app.sqlite", .{});
     defer pool.deinit();
 
     _ = try pool.insert(init.io, User, .{ .id = 1, .name = name });
@@ -292,7 +300,9 @@ defer name.deinit(a);
 ## Manual SQL (Stmt API)
 
 ```zig
-var st = try zite.Stmt.init(&db, "SELECT body FROM notes WHERE id=?1;");
+const Driver = zite.drivers.sqlite3;
+const Stmt = zite.Stmt(Driver);
+var st = try Stmt.init(&db, "SELECT body FROM notes WHERE id=?1;");
 defer st.deinit();
 try st.bindInt(1, 1);
 if (try st.step() == .row) {
@@ -334,8 +344,8 @@ Public APIs now return layered error sets instead of one catch-all set.
 - `errors.AsyncOrmError`: async boundary failures plus propagated ORM errors.
 - `errors.SchemaError`: schema SQL generation allocation failures.
 
-SQLite return codes are still mapped to specific errors such as
-`error.SqliteBusy`, `error.SqliteConstraint`, and `error.SqliteIo`.
+Driver return codes are mapped to specific errors such as
+`error.DriverBusy`, `error.DriverConstraint`, and `error.DriverIo`.
 
 Notable behavior-specific errors:
 - `error.StatementFinalized`: statement or row-backed handle used after `deinit()`/`finalize()`.
