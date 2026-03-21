@@ -300,6 +300,20 @@ blob values return a non-null empty slice.
 `Stmt` enforces lifecycle validity. After `deinit()`/`finalize()`, all statement
 operations return `error.StatementFinalized`.
 
+## Guarded SQL Fragments (ORM)
+
+Repository raw-fragment helpers use paired APIs:
+
+- Guarded: `findOneSql`, `findManySql`, `findManySqlWithOptions`, `findManyOwnedSql`, `deleteWhereSql`
+- Explicit escape hatch: corresponding `...SqlUnsafe` variants
+
+Guarded variants validate raw SQL fragments and return `error.UnsafeSqlFragment`
+when unsafe constructs are detected. `findManySqlWithOptions` validates both
+`where_clause` and `opts.order_by`.
+
+Use `...SqlUnsafe` only when the fragment is fully trusted (for example,
+internal constant SQL that cannot be influenced by external input).
+
 ## Errors
 
 Public APIs now return layered error sets instead of one catch-all set.
@@ -318,7 +332,7 @@ Notable behavior-specific errors:
 - `error.StatementFinalized`: statement or row-backed handle used after `deinit()`/`finalize()`.
 - `error.RowViewStale`: a `RowView` was accessed after its cursor advanced.
 - `error.UnsafeSqlFragment`: guarded raw SQL fragment rejected by ORM safety checks.
-- `error.EmptyWhereClause`: `deleteWhereRaw` called with empty WHERE.
+- `error.EmptyWhereClause`: `deleteWhereSql` called with empty WHERE.
 - `error.UnexpectedExtraRows`: `findOne`/`findById` observed more rows than expected.
 
 ## Tests

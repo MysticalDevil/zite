@@ -80,5 +80,5 @@ ZITE_NOTE_BODY="from-env" zig run --dep zite -Mroot=examples/process_init_env.zi
 - SQLite must be available on the system (`sqlite3` headers and library).
 - Most examples use `:memory:` databases for convenience; `async_pool_basic.zig` uses a file-backed database.
 - Transactions support both `commit()` and explicit `rollback()`.
-- `deleteWhereRaw` requires a non-empty WHERE clause.
+- `deleteWhereSql` requires a non-empty WHERE clause.
 - `AsyncPool` is experimental and requires Zig `0.16/master` `std.Io`.
