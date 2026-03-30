@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const Note = struct {
@@ -22,7 +23,7 @@ test "mapper: text round trip with types.OwnedText" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, Note);
-    var repo = orm.orm.repository(Note, &db, a);
+    var repo = orm.repository(Note, &db, a);
 
     const payload = "hello text";
     var body = try orm.types.OwnedText.fromConst(a, payload);

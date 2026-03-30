@@ -1,9 +1,19 @@
 const std = @import("std");
 
+const SqliteBackend = enum {
+    system,
+    pure,
+};
+
 pub fn build(b: *std.Build) void {
     // Standard CLI options.
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const sqlite_backend = b.option(SqliteBackend, "sqlite_backend", "SQLite backend: system (libsqlite3) or pure (pure-Zig driver)") orelse .system;
+
+    const build_options = b.addOptions();
+    build_options.addOption(SqliteBackend, "sqlite_backend", sqlite_backend);
+    const build_options_mod = build_options.createModule();
 
     // Library module.
     const zite_mod = b.addModule("zite", .{
@@ -11,8 +21,13 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .imports = &.{
+            .{ .name = "build_options", .module = build_options_mod },
+        },
     });
-    zite_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
+    if (sqlite_backend == .system) {
+        zite_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
+    }
 
     // Unit tests for library module.
     const unit_tests = b.addTest(.{
@@ -29,8 +44,13 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .imports = &.{
+            .{ .name = "build_options", .module = build_options_mod },
+        },
     });
-    unit_file_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
+    if (sqlite_backend == .system) {
+        unit_file_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
+    }
 
     const unit_file_tests = b.addTest(.{
         .root_module = unit_file_mod,
@@ -46,9 +66,12 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .imports = &.{
             .{ .name = "zite", .module = zite_mod },
+            .{ .name = "build_options", .module = build_options_mod },
         },
     });
-    it_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
+    if (sqlite_backend == .system) {
+        it_mod.linkSystemLibrary("sqlite3", .{ .needed = true });
+    }
 
     const itests = b.addTest(.{
         .root_module = it_mod,

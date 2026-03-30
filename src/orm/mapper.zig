@@ -1,6 +1,7 @@
 const std = @import("std");
-const Db = @import("../db/db.zig").Db;
-const Stmt = @import("../db/stmt.zig").Stmt;
+const Driver = @import("../driver/sqlite3.zig");
+const Db = @import("../db/db.zig").Db(Driver);
+const Stmt = @import("../db/stmt.zig").Stmt(Driver);
 const types = @import("../core/types.zig");
 const engine = @import("engine.zig");
 
@@ -270,7 +271,7 @@ pub fn upsert(comptime T: type, db: *Db, entity: T) errors.OrmError!UpsertResult
     }
 
     _ = insert(T, db, entity) catch |err| {
-        if (err != error.SqliteConstraint) {
+        if (err != error.DriverConstraint) {
             return err;
         }
 
@@ -733,7 +734,7 @@ test "mapper: deleteWhere propagates OutOfMemory from SQL building" {
     );
 }
 
-test "mapper: upsert keeps non-pk unique conflicts as SqliteConstraint" {
+test "mapper: upsert keeps non-pk unique conflicts as DriverConstraint" {
     const Row = struct {
         id: i64,
         name: types.OwnedText,
@@ -764,7 +765,7 @@ test "mapper: upsert keeps non-pk unique conflicts as SqliteConstraint" {
     var n2 = try types.OwnedText.fromConst(a, "alice");
     defer n2.deinit(a);
     try std.testing.expectError(
-        error.SqliteConstraint,
+        error.DriverConstraint,
         upsert(Row, &db, .{ .id = 2, .name = n2 }),
     );
 }

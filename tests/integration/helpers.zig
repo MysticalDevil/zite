@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 
 pub fn openMemoryDb(a: std.mem.Allocator) !orm.Db {
     return orm.Db.open(a, ":memory:");

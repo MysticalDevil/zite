@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
@@ -23,7 +24,7 @@ test "orm.query: whereEq/orderBy/limit/offset/whereSql" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -67,7 +68,7 @@ test "orm.query: orderBy supports multi-column sort" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "b");
     defer n1.deinit(a);
@@ -104,7 +105,7 @@ test "orm.query: iterateViews and row handle lookups are zero-copy" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -155,7 +156,7 @@ test "orm.query: row view becomes stale after cursor advances" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -183,7 +184,7 @@ test "orm.query: row handle is invalid after deinit" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -202,7 +203,7 @@ test "orm.query: firstHandle remains valid after query builder deinit" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -227,7 +228,7 @@ test "orm.query: row view is finalized after cursor deinit" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -251,7 +252,7 @@ test "orm.query: whereSql is atomic when param conversion fails" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var q = repo.query();
     defer q.deinit();
@@ -277,7 +278,7 @@ test "orm.query: guarded raw APIs reject unsafe SQL fragments" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var q = repo.query();
     defer q.deinit();
@@ -300,7 +301,7 @@ test "orm.query: unsafe raw APIs preserve prior behavior" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -345,7 +346,7 @@ test "orm.query: whereSql then whereEq keeps placeholder indices aligned" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -374,7 +375,7 @@ test "orm.query: whereEq then whereSql rebases relative placeholders" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
@@ -403,7 +404,7 @@ test "orm.query: whereSql rebases anonymous placeholders after whereEq" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var n1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);

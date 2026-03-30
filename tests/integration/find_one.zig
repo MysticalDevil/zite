@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
@@ -28,7 +29,7 @@ test "mapper.findOne: where + params" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var name1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
@@ -65,7 +66,7 @@ test "mapper.findOne: returns UnexpectedExtraRows for multi-match query" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var name1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);

@@ -1,9 +1,13 @@
 const std = @import("std");
-const Db = @import("../db/db.zig").Db;
-const Stmt = @import("../db/stmt.zig").Stmt;
-const types = @import("../core/types.zig");
+const Driver = @import("../driver/sqlite3.zig");
+pub const Db = @import("../db/db.zig").Db(Driver);
+pub const Stmt = @import("../db/stmt.zig").Stmt(Driver);
+pub const StepResult = @import("../db/stmt.zig").StepResult;
+pub const types = @import("../core/types.zig");
+pub const schema = @import("schema.zig");
+pub const raw = @import("../driver/sqlite3.zig");
 const meta = @import("../core/meta.zig");
-const errors = @import("../core/errors.zig");
+pub const errors = @import("../core/errors.zig");
 const mapper = @import("mapper.zig");
 const engine = @import("engine.zig");
 

@@ -1,12 +1,9 @@
 const std = @import("std");
-const raw = @import("../raw/mod.zig");
 const types = @import("../core/types.zig");
 const diag = @import("diag.zig");
 const errors = @import("../core/errors.zig");
-const sqlite_errors = @import("sqlite_errors.zig");
-
-const Db = @import("db.zig").Db;
-const db_ok = raw.SQLITE_OK;
+const driver_root = @import("../driver/root.zig");
+const driver_errors = @import("driver_errors.zig");
 
 /// Result of stepping a statement.
 pub const StepResult = enum {
@@ -16,341 +13,351 @@ pub const StepResult = enum {
     done,
 };
 
-/// Prepared statement wrapper for sqlite3_stmt.
-pub const Stmt = struct {
-    /// Back-reference to the owning Db (for diagnostics and tracking).
-    db: *Db,
-    /// Opaque sqlite3 statement handle.
-    stmt: raw.StmtHandle,
-    /// Prevents double-finalize and enables Db tracking.
-    finalized: bool = false,
+/// Prepared statement wrapper for selected driver statements.
+pub fn Stmt(comptime Driver: type) type {
+    comptime driver_root.assertDriver(Driver);
+    const DbT = @import("db.zig").Db(Driver);
 
-    const Self = @This();
+    return struct {
+        /// Back-reference to the owning Db (for diagnostics and tracking).
+        db: *DbT,
+        /// Opaque statement handle.
+        stmt: Driver.StmtHandle,
+        /// Prevents double-finalize and enables Db tracking.
+        finalized: bool = false,
 
-    /// Prepares a SQL statement. Must be finalized when no longer used.
-    /// Caller owns the statement and must call `deinit()`.
-    pub fn init(db: *Db, sql: []const u8) errors.StmtError!Self {
-        var stmt_opt: ?raw.StmtHandle = null;
+        const Self = @This();
 
-        const n: i32 = @intCast(sql.len);
-        const rc = raw.stmt.prepare(
-            db.handle,
-            sql.ptr,
-            n,
-            &stmt_opt,
-        );
-        if (rc != db_ok or stmt_opt == null) {
-            diag.logSqlite(db, rc, "sqlite3_prepare_v2", sql);
-            return sqlite_errors.mapSqliteRc(rc, error.SqlitePrepareFailed);
+        /// Prepares a SQL statement. Must be finalized when no longer used.
+        /// Caller owns the statement and must call `deinit()`.
+        pub fn init(db: *DbT, sql: []const u8) errors.StmtError!Self {
+            var stmt_opt: ?Driver.StmtHandle = null;
+
+            const n: i32 = @intCast(sql.len);
+            const rc = Driver.stmt.prepare(
+                db.handle,
+                sql.ptr,
+                n,
+                &stmt_opt,
+            );
+            if (rc != Driver.OK or stmt_opt == null) {
+                diag.logSqlite(db, rc, "driver_prepare", sql);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverPrepareFailed);
+            }
+
+            db.registerStmt();
+            return .{ .db = db, .stmt = stmt_opt.? };
         }
 
-        db.registerStmt();
-        return .{ .db = db, .stmt = stmt_opt.? };
-    }
+        /// Finalizes the underlying statement (idempotent).
+        pub fn finalize(self: *Self) errors.StmtError!void {
+            if (self.finalized) {
+                return;
+            }
 
-    /// Finalizes the underlying SQLite statement (idempotent).
-    pub fn finalize(self: *Self) errors.StmtError!void {
-        if (self.finalized) {
-            return;
-        }
+            const rc = Driver.stmt.finalize(self.stmt);
+            self.finalized = true;
+            var unregister_err: ?errors.DbError = null;
+            self.db.unregisterStmt() catch |err| {
+                unregister_err = err;
+            };
 
-        const rc = raw.stmt.finalize(self.stmt);
-        self.finalized = true;
-        var unregister_err: ?errors.DbError = null;
-        self.db.unregisterStmt() catch |err| {
-            unregister_err = err;
-        };
-
-        if (rc != db_ok) {
+            if (rc != Driver.OK) {
+                if (unregister_err) |err| {
+                    return err;
+                }
+                diag.logSqlite(self.db, rc, "driver_finalize", null);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverFinalizeFailed);
+            }
             if (unregister_err) |err| {
                 return err;
             }
-            diag.logSqlite(self.db, rc, "sqlite3_finalize", null);
-            return sqlite_errors.mapSqliteRc(rc, error.SqliteFinalizeFailed);
         }
-        if (unregister_err) |err| {
-            return err;
-        }
-    }
 
-    /// Alias for finalize() to match deinit patterns.
-    pub fn deinit(self: *Self) void {
-        self.finalize() catch |err| {
-            // Cleanup paths must stay quiet for expected statement failures
-            // (for example, constraint errors already observed by callers).
-            // Only log lifecycle bookkeeping corruption.
-            if (err == error.StatementCountUnderflow) {
-                std.log.warn("sqlite warning what=stmt_unregister_failed err={}", .{err});
+        /// Alias for finalize() to match deinit patterns.
+        pub fn deinit(self: *Self) void {
+            self.finalize() catch |err| {
+                // Cleanup paths must stay quiet for expected statement failures
+                // (for example, constraint errors already observed by callers).
+                // Only log lifecycle bookkeeping corruption.
+                if (err == error.StatementCountUnderflow) {
+                    std.log.warn("driver warning what=stmt_unregister_failed err={}", .{err});
+                }
+            };
+        }
+
+        /// Returns whether this statement has been finalized.
+        pub fn isFinalized(self: *const Self) bool {
+            return self.finalized;
+        }
+
+        /// Resets the statement so it can be re-executed.
+        pub fn reset(self: *Self) errors.StmtError!void {
+            try self.ensureOpen();
+            const rc = Driver.stmt.reset(self.stmt);
+            if (rc != Driver.OK) {
+                diag.logSqlite(self.db, rc, "driver_reset", null);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverResetFailed);
             }
-        };
-    }
-
-    /// Returns whether this statement has been finalized.
-    pub fn isFinalized(self: *const Self) bool {
-        return self.finalized;
-    }
-
-    /// Resets the statement so it can be re-executed.
-    pub fn reset(self: *Self) errors.StmtError!void {
-        try self.ensureOpen();
-        const rc = raw.stmt.reset(self.stmt);
-        if (rc != db_ok) {
-            diag.logSqlite(self.db, rc, "sqlite3_reset", null);
-            return sqlite_errors.mapSqliteRc(rc, error.SqliteResetFailed);
-        }
-    }
-
-    /// Steps the statement. Returns .row for a row, .done when complete.
-    /// The caller must read columns before stepping again.
-    pub fn step(self: *Stmt) errors.StmtError!StepResult {
-        try self.ensureOpen();
-        const rc = raw.stmt.step(self.stmt);
-        return switch (rc) {
-            raw.SQLITE_ROW => .row,
-            raw.SQLITE_DONE => .done,
-            else => blk: {
-                diag.logSqlite(self.db, rc, "sqlite3_step", null);
-                break :blk sqlite_errors.mapSqliteRc(rc, error.SqliteStepFailed);
-            },
-        };
-    }
-
-    // ---------- bind (1-based index) ----------
-    /// Binds NULL to a 1-based parameter index.
-    pub fn bindNull(self: *Self, idx: i32) errors.StmtError!void {
-        try self.ensureOpen();
-        const rc = raw.stmt.bindNull(self.stmt, idx);
-        if (rc != db_ok) {
-            diag.logSqlite(self.db, rc, "sqlite3_bind_null", null);
-            diag.logBind("null", idx);
-            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
-        }
-    }
-
-    /// Binds an integer to a 1-based parameter index.
-    pub fn bindInt(self: *Self, idx: i32, value: i64) errors.StmtError!void {
-        try self.ensureOpen();
-        const rc = raw.stmt.bindInt64(self.stmt, idx, value);
-        if (rc != db_ok) {
-            diag.logSqlite(self.db, rc, "sqlite3_bind_int64", null);
-            diag.logBind("int64", idx);
-            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
-        }
-    }
-
-    /// Binds a double to a 1-based parameter index.
-    pub fn bindFloat(self: *Self, idx: i32, value: f64) errors.StmtError!void {
-        try self.ensureOpen();
-        const rc = raw.stmt.bindDouble(self.stmt, idx, @as(f64, @floatCast(value)));
-        if (rc != db_ok) {
-            diag.logSqlite(self.db, rc, "sqlite3_bind_double", null);
-            diag.logBind("double", idx);
-            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
-        }
-    }
-
-    /// Binds a boolean to a 1-based parameter index.
-    pub fn bindBool(self: *Self, idx: i32, value: bool) errors.StmtError!void {
-        try self.ensureOpen();
-        const rc = raw.stmt.bindInt(self.stmt, idx, if (value) 1 else 0);
-        if (rc != db_ok) {
-            diag.logSqlite(self.db, rc, "sqlite3_bind_int", null);
-            diag.logBind("int", idx);
-            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
-        }
-    }
-
-    /// Binds a UTF-8 string to a 1-based parameter index.
-    pub fn bindText(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
-        try self.ensureOpen();
-        const n: i32 = @intCast(value.len);
-        const rc = raw.stmt.bindText(self.stmt, idx, value.ptr, n);
-        if (rc != db_ok) {
-            diag.logSqlite(self.db, rc, "sqlite3_bind_text", null);
-            diag.logBind("text", idx);
-            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
-        }
-    }
-
-    /// Binds a blob to a 1-based parameter index.
-    pub fn bindBlob(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
-        try self.ensureOpen();
-        const n: i32 = @intCast(value.len);
-        const rc = raw.stmt.bindBlob(self.stmt, idx, value.ptr, n);
-        if (rc != db_ok) {
-            diag.logSqlite(self.db, rc, "sqlite3_bind_blob", null);
-            diag.logBind("blob", idx);
-            return sqlite_errors.mapSqliteRc(rc, error.SqliteBindFailed);
-        }
-    }
-
-    /// General Binding: Supports int/uint/bool/float/enum/optional(?T)
-    /// plus types.OwnedText/types.OwnedBlob and types.EpochMillis.
-    /// For TEXT/BLOB, use Owned* types (borrowed slices are not accepted).
-    pub fn bindOne(self: *Self, idx: i32, value: anytype) errors.StmtError!void {
-        const T = @TypeOf(value);
-
-        if (T == types.EpochMillis) {
-            return self.bindInt(idx, value.value);
-        }
-        if (T == types.OwnedText) {
-            return self.bindText(idx, value.value);
-        }
-        if (T == types.OwnedBlob) {
-            return self.bindBlob(idx, value.value);
         }
 
-        switch (@typeInfo(T)) {
-            .optional => {
-                if (value == null)
-                    return self.bindNull(idx);
-                return self.bindOne(idx, value.?);
-            },
-            .bool => return self.bindBool(idx, value),
-            .int, .comptime_int => return self.bindInt(idx, value),
-            .float, .comptime_float => return self.bindFloat(idx, value),
-            .@"enum" => return self.bindInt(idx, @as(i64, @intCast(@intFromEnum(value)))),
-            .pointer, .array => return error.UnsupportedBindType,
-            else => return error.UnsupportedBindType,
-        }
-    }
-
-    /// Bind multiple parameters at once: params should be passed as a tuple (anonymous struct): .{ a, b, c }
-    /// Rules:
-    /// - Parameter indices start at 1 (SQLite convention)
-    /// - Supports tuples / regular structs (field order matters)
-    pub fn bindAll(self: *Self, params: anytype) errors.StmtError!void {
-        const P = @TypeOf(params);
-        const ti = @typeInfo(P);
-
-        if (ti != .@"struct")
-            return error.BindAllExpectedStructOrTuple;
-
-        const s = ti.@"struct";
-        inline for (s.fields, 0..) |f, i| {
-            const v = @field(params, f.name);
-            try self.bindOne(@as(i32, @intCast(i + 1)), v);
-        }
-    }
-
-    // --------- column (0-based index, valid when step()==.row) ----------
-    /// Reads an integer column value.
-    pub fn colInt(self: *Self, col: i32) errors.RowReadError!i64 {
-        try self.ensureOpen();
-        return raw.stmt.columnInt64(self.stmt, col);
-    }
-
-    /// Reads a boolean column value (0/1).
-    pub fn colBool(self: *Self, col: i32) errors.RowReadError!bool {
-        try self.ensureOpen();
-        return raw.stmt.columnInt(self.stmt, col) != 0;
-    }
-
-    /// Reads a double column value.
-    pub fn colDouble(self: *Stmt, col: i32) errors.RowReadError!f64 {
-        try self.ensureOpen();
-        return raw.stmt.columnDouble(self.stmt, col);
-    }
-
-    /// Returns true if the column is NULL.
-    pub fn colIsNull(self: *Self, col: i32) errors.RowReadError!bool {
-        try self.ensureOpen();
-        return raw.stmt.columnType(self.stmt, col) == raw.SQLITE_NULL;
-    }
-
-    /// Returns an owned copy of TEXT data (caller frees with allocator).
-    pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.RowReadError!?[]u8 {
-        try self.ensureOpen();
-        if (try self.colIsNull(col)) {
-            return null;
+        /// Steps the statement. Returns .row for a row, .done when complete.
+        /// The caller must read columns before stepping again.
+        pub fn step(self: *Self) errors.StmtError!StepResult {
+            try self.ensureOpen();
+            const rc = Driver.stmt.step(self.stmt);
+            return switch (rc) {
+                Driver.ROW => .row,
+                Driver.DONE => .done,
+                else => blk: {
+                    diag.logSqlite(self.db, rc, "driver_step", null);
+                    break :blk driver_errors.mapDriverRc(Driver, rc, error.DriverStepFailed);
+                },
+            };
         }
 
-        const n = raw.stmt.columnBytes(self.stmt, col);
-        const len: usize = @intCast(n);
-        if (len == 0) {
-            return &.{};
+        // ---------- bind (1-based index) ----------
+        /// Binds NULL to a 1-based parameter index.
+        pub fn bindNull(self: *Self, idx: i32) errors.StmtError!void {
+            try self.ensureOpen();
+            const rc = Driver.stmt.bindNull(self.stmt, idx);
+            if (rc != Driver.OK) {
+                diag.logSqlite(self.db, rc, "driver_bind_null", null);
+                diag.logBind("null", idx);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
+            }
         }
 
-        const p = raw.stmt.columnText(self.stmt, col) orelse return &.{};
-        const src: [*]const u8 = @ptrCast(p);
-        const out = try a.alloc(u8, len);
-        if (len != 0) {
-            std.mem.copyForwards(u8, out, src[0..len]);
-        }
-        return out;
-    }
-
-    /// Returns borrowed TEXT data without copying.
-    /// The returned slice is valid only until the next step/reset/finalize.
-    pub fn colTextBorrowed(self: *Self, col: i32) errors.RowReadError!?[]const u8 {
-        if (try self.colIsNull(col)) {
-            return null;
+        /// Binds an integer to a 1-based parameter index.
+        pub fn bindInt(self: *Self, idx: i32, value: i64) errors.StmtError!void {
+            try self.ensureOpen();
+            const rc = Driver.stmt.bindInt64(self.stmt, idx, value);
+            if (rc != Driver.OK) {
+                diag.logSqlite(self.db, rc, "driver_bind_int64", null);
+                diag.logBind("int64", idx);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
+            }
         }
 
-        const n = raw.stmt.columnBytes(self.stmt, col);
-        const len: usize = @intCast(n);
-        if (len == 0) {
-            return &.{};
+        /// Binds a double to a 1-based parameter index.
+        pub fn bindFloat(self: *Self, idx: i32, value: f64) errors.StmtError!void {
+            try self.ensureOpen();
+            const rc = Driver.stmt.bindDouble(self.stmt, idx, @as(f64, @floatCast(value)));
+            if (rc != Driver.OK) {
+                diag.logSqlite(self.db, rc, "driver_bind_double", null);
+                diag.logBind("double", idx);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
+            }
         }
 
-        const p = raw.stmt.columnText(self.stmt, col) orelse return &.{};
-        const src: [*]const u8 = @ptrCast(p);
-        return src[0..len];
-    }
-
-    /// Returns an owned copy of BLOB data (caller frees with allocator).
-    pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.RowReadError!?[]u8 {
-        try self.ensureOpen();
-        if (try self.colIsNull(col)) {
-            return null;
+        /// Binds a boolean to a 1-based parameter index.
+        pub fn bindBool(self: *Self, idx: i32, value: bool) errors.StmtError!void {
+            try self.ensureOpen();
+            const rc = Driver.stmt.bindInt(self.stmt, idx, if (value) 1 else 0);
+            if (rc != Driver.OK) {
+                diag.logSqlite(self.db, rc, "driver_bind_int", null);
+                diag.logBind("int", idx);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
+            }
         }
 
-        const n = raw.stmt.columnBytes(self.stmt, col);
-        const len: usize = @intCast(n);
-        if (len == 0) {
-            return &.{};
+        /// Binds a UTF-8 string to a 1-based parameter index.
+        pub fn bindText(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
+            try self.ensureOpen();
+            const n: i32 = @intCast(value.len);
+            const rc = Driver.stmt.bindText(self.stmt, idx, value.ptr, n);
+            if (rc != Driver.OK) {
+                diag.logSqlite(self.db, rc, "driver_bind_text", null);
+                diag.logBind("text", idx);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
+            }
         }
 
-        const p = raw.stmt.columnBlob(self.stmt, col) orelse return &.{};
-        const src: [*]const u8 = @ptrCast(p);
-        const out = try a.alloc(u8, len);
-        if (len != 0) {
-            std.mem.copyForwards(u8, out, src[0..len]);
-        }
-        return out;
-    }
-
-    /// Returns borrowed BLOB data without copying.
-    /// The returned slice is valid only until the next step/reset/finalize.
-    pub fn colBlobBorrowed(self: *Self, col: i32) errors.RowReadError!?[]const u8 {
-        if (try self.colIsNull(col)) {
-            return null;
+        /// Binds a blob to a 1-based parameter index.
+        pub fn bindBlob(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
+            try self.ensureOpen();
+            const n: i32 = @intCast(value.len);
+            const rc = Driver.stmt.bindBlob(self.stmt, idx, value.ptr, n);
+            if (rc != Driver.OK) {
+                diag.logSqlite(self.db, rc, "driver_bind_blob", null);
+                diag.logBind("blob", idx);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
+            }
         }
 
-        const n = raw.stmt.columnBytes(self.stmt, col);
-        const len: usize = @intCast(n);
-        if (len == 0) {
-            return &.{};
+        /// General Binding: Supports int/uint/bool/float/enum/optional(?T)
+        /// plus types.OwnedText/types.OwnedBlob and types.EpochMillis.
+        /// For TEXT/BLOB, use Owned* types (borrowed slices are not accepted).
+        pub fn bindOne(self: *Self, idx: i32, value: anytype) errors.StmtError!void {
+            const T = @TypeOf(value);
+
+            if (T == types.EpochMillis) {
+                return self.bindInt(idx, value.value);
+            }
+            if (T == types.OwnedText) {
+                return self.bindText(idx, value.value);
+            }
+            if (T == types.OwnedBlob) {
+                return self.bindBlob(idx, value.value);
+            }
+
+            switch (@typeInfo(T)) {
+                .optional => {
+                    if (value == null) {
+                        return self.bindNull(idx);
+                    }
+                    return self.bindOne(idx, value.?);
+                },
+                .bool => return self.bindBool(idx, value),
+                .int, .comptime_int => return self.bindInt(idx, value),
+                .float, .comptime_float => return self.bindFloat(idx, value),
+                .@"enum" => return self.bindInt(idx, @as(i64, @intCast(@intFromEnum(value)))),
+                .pointer, .array => return error.UnsupportedBindType,
+                else => return error.UnsupportedBindType,
+            }
         }
 
-        const p = raw.stmt.columnBlob(self.stmt, col) orelse return &.{};
-        const src: [*]const u8 = @ptrCast(p);
-        return src[0..len];
-    }
+        /// Bind multiple parameters at once: params should be passed as a tuple (anonymous struct): .{ a, b, c }
+        /// Rules:
+        /// - Parameter indices start at 1 (SQLite convention)
+        /// - Supports tuples / regular structs (field order matters)
+        pub fn bindAll(self: *Self, params: anytype) errors.StmtError!void {
+            const P = @TypeOf(params);
+            const ti = @typeInfo(P);
 
-    fn ensureOpen(self: *const Self) errors.StmtError!void {
-        if (self.finalized) {
-            return error.StatementFinalized;
+            if (ti != .@"struct") {
+                return error.BindAllExpectedStructOrTuple;
+            }
+
+            const s = ti.@"struct";
+            inline for (s.fields, 0..) |f, i| {
+                const v = @field(params, f.name);
+                try self.bindOne(@as(i32, @intCast(i + 1)), v);
+            }
         }
-    }
-};
+
+        // --------- column (0-based index, valid when step()==.row) ----------
+        /// Reads an integer column value.
+        pub fn colInt(self: *Self, col: i32) errors.RowReadError!i64 {
+            try self.ensureOpen();
+            return Driver.stmt.columnInt64(self.stmt, col);
+        }
+
+        /// Reads a boolean column value (0/1).
+        pub fn colBool(self: *Self, col: i32) errors.RowReadError!bool {
+            try self.ensureOpen();
+            return Driver.stmt.columnInt(self.stmt, col) != 0;
+        }
+
+        /// Reads a double column value.
+        pub fn colDouble(self: *Self, col: i32) errors.RowReadError!f64 {
+            try self.ensureOpen();
+            return Driver.stmt.columnDouble(self.stmt, col);
+        }
+
+        /// Returns true if the column is NULL.
+        pub fn colIsNull(self: *Self, col: i32) errors.RowReadError!bool {
+            try self.ensureOpen();
+            return Driver.stmt.columnType(self.stmt, col) == Driver.NULL;
+        }
+
+        /// Returns an owned copy of TEXT data (caller frees with allocator).
+        pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.RowReadError!?[]u8 {
+            try self.ensureOpen();
+            if (try self.colIsNull(col)) {
+                return null;
+            }
+
+            const n = Driver.stmt.columnBytes(self.stmt, col);
+            const len: usize = @intCast(n);
+            if (len == 0) {
+                return &.{};
+            }
+
+            const p = Driver.stmt.columnText(self.stmt, col) orelse return &.{};
+            const src: [*]const u8 = @ptrCast(p);
+            const out = try a.alloc(u8, len);
+            if (len != 0) {
+                std.mem.copyForwards(u8, out, src[0..len]);
+            }
+            return out;
+        }
+
+        /// Returns borrowed TEXT data without copying.
+        /// The returned slice is valid only until the next step/reset/finalize.
+        pub fn colTextBorrowed(self: *Self, col: i32) errors.RowReadError!?[]const u8 {
+            if (try self.colIsNull(col)) {
+                return null;
+            }
+
+            const n = Driver.stmt.columnBytes(self.stmt, col);
+            const len: usize = @intCast(n);
+            if (len == 0) {
+                return &.{};
+            }
+
+            const p = Driver.stmt.columnText(self.stmt, col) orelse return &.{};
+            const src: [*]const u8 = @ptrCast(p);
+            return src[0..len];
+        }
+
+        /// Returns an owned copy of BLOB data (caller frees with allocator).
+        pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.RowReadError!?[]u8 {
+            try self.ensureOpen();
+            if (try self.colIsNull(col)) {
+                return null;
+            }
+
+            const n = Driver.stmt.columnBytes(self.stmt, col);
+            const len: usize = @intCast(n);
+            if (len == 0) {
+                return &.{};
+            }
+
+            const p = Driver.stmt.columnBlob(self.stmt, col) orelse return &.{};
+            const src: [*]const u8 = @ptrCast(p);
+            const out = try a.alloc(u8, len);
+            if (len != 0) {
+                std.mem.copyForwards(u8, out, src[0..len]);
+            }
+            return out;
+        }
+
+        /// Returns borrowed BLOB data without copying.
+        /// The returned slice is valid only until the next step/reset/finalize.
+        pub fn colBlobBorrowed(self: *Self, col: i32) errors.RowReadError!?[]const u8 {
+            if (try self.colIsNull(col)) {
+                return null;
+            }
+
+            const n = Driver.stmt.columnBytes(self.stmt, col);
+            const len: usize = @intCast(n);
+            if (len == 0) {
+                return &.{};
+            }
+
+            const p = Driver.stmt.columnBlob(self.stmt, col) orelse return &.{};
+            const src: [*]const u8 = @ptrCast(p);
+            return src[0..len];
+        }
+
+        fn ensureOpen(self: *const Self) errors.StmtError!void {
+            if (self.finalized) {
+                return error.StatementFinalized;
+            }
+        }
+    };
+}
 
 test "stmt: bindInt and reset" {
+    const Driver = @import("../driver/sqlite3.zig");
+    const DbT = @import("db.zig").Db(Driver);
+    const StmtT = Stmt(Driver);
     const a = std.testing.allocator;
-    var db = try Db.open(a, ":memory:");
+    var db = try DbT.open(a, ":memory:");
     defer db.deinit();
 
-    var st = try Stmt.init(&db, "SELECT ?1;");
+    var st = try StmtT.init(&db, "SELECT ?1;");
     defer st.deinit();
 
     try st.bindInt(1, 1);
@@ -366,22 +373,28 @@ test "stmt: bindInt and reset" {
 }
 
 test "stmt: bindAll requires struct/tuple" {
+    const Driver = @import("../driver/sqlite3.zig");
+    const DbT = @import("db.zig").Db(Driver);
+    const StmtT = Stmt(Driver);
     const a = std.testing.allocator;
-    var db = try Db.open(a, ":memory:");
+    var db = try DbT.open(a, ":memory:");
     defer db.deinit();
 
-    var st = try Stmt.init(&db, "SELECT ?1;");
+    var st = try StmtT.init(&db, "SELECT ?1;");
     defer st.deinit();
 
     try std.testing.expectError(error.BindAllExpectedStructOrTuple, st.bindAll(@as(i64, 1)));
 }
 
 test "stmt: bindOne supports OwnedText/OwnedBlob/EpochMillis/optional" {
+    const Driver = @import("../driver/sqlite3.zig");
+    const DbT = @import("db.zig").Db(Driver);
+    const StmtT = Stmt(Driver);
     const a = std.testing.allocator;
-    var db = try Db.open(a, ":memory:");
+    var db = try DbT.open(a, ":memory:");
     defer db.deinit();
 
-    var st = try Stmt.init(&db, "SELECT ?1, ?2, ?3, ?4;");
+    var st = try StmtT.init(&db, "SELECT ?1, ?2, ?3, ?4;");
     defer st.deinit();
 
     var text = try types.OwnedText.fromConst(a, "zig");
@@ -409,11 +422,14 @@ test "stmt: bindOne supports OwnedText/OwnedBlob/EpochMillis/optional" {
 }
 
 test "stmt: bindText/blob and colTextOwned/colBlobOwned on empty" {
+    const Driver = @import("../driver/sqlite3.zig");
+    const DbT = @import("db.zig").Db(Driver);
+    const StmtT = Stmt(Driver);
     const a = std.testing.allocator;
-    var db = try Db.open(a, ":memory:");
+    var db = try DbT.open(a, ":memory:");
     defer db.deinit();
 
-    var st = try Stmt.init(&db, "SELECT ?1, ?2;");
+    var st = try StmtT.init(&db, "SELECT ?1, ?2;");
     defer st.deinit();
 
     try st.bindText(1, "");
@@ -433,11 +449,14 @@ test "stmt: bindText/blob and colTextOwned/colBlobOwned on empty" {
 }
 
 test "stmt: colTextOwned/colBlobOwned propagate OutOfMemory" {
+    const Driver = @import("../driver/sqlite3.zig");
+    const DbT = @import("db.zig").Db(Driver);
+    const StmtT = Stmt(Driver);
     const a = std.testing.allocator;
-    var db = try Db.open(a, ":memory:");
+    var db = try DbT.open(a, ":memory:");
     defer db.deinit();
 
-    var st = try Stmt.init(&db, "SELECT ?1, ?2;");
+    var st = try StmtT.init(&db, "SELECT ?1, ?2;");
     defer st.deinit();
     try st.bindText(1, "abc");
     try st.bindBlob(2, &[_]u8{ 1, 2, 3 });
@@ -462,11 +481,14 @@ test "stmt: colTextOwned/colBlobOwned propagate OutOfMemory" {
 }
 
 test "stmt: colTextBorrowed/colBlobBorrowed zero-copy reads" {
+    const Driver = @import("../driver/sqlite3.zig");
+    const DbT = @import("db.zig").Db(Driver);
+    const StmtT = Stmt(Driver);
     const a = std.testing.allocator;
-    var db = try Db.open(a, ":memory:");
+    var db = try DbT.open(a, ":memory:");
     defer db.deinit();
 
-    var st = try Stmt.init(&db, "SELECT ?1, ?2, ?3, ?4;");
+    var st = try StmtT.init(&db, "SELECT ?1, ?2, ?3, ?4;");
     defer st.deinit();
     try st.bindText(1, "abc");
     try st.bindBlob(2, &[_]u8{ 7, 8, 9 });
@@ -484,11 +506,14 @@ test "stmt: colTextBorrowed/colBlobBorrowed zero-copy reads" {
 }
 
 test "stmt: operations after deinit return StatementFinalized" {
+    const Driver = @import("../driver/sqlite3.zig");
+    const DbT = @import("db.zig").Db(Driver);
+    const StmtT = Stmt(Driver);
     const a = std.testing.allocator;
-    var db = try Db.open(a, ":memory:");
+    var db = try DbT.open(a, ":memory:");
     defer db.deinit();
 
-    var st = try Stmt.init(&db, "SELECT 1;");
+    var st = try StmtT.init(&db, "SELECT 1;");
     st.deinit();
 
     try std.testing.expectError(error.StatementFinalized, st.step());

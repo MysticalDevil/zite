@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 
 test "Stmt.bindAll: binds int/text/null and reads them back" {
     var gpa = std.heap.DebugAllocator(.{}).init;

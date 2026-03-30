@@ -1,12 +1,13 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 
 fn returnType(comptime function: anytype) type {
     return @typeInfo(@TypeOf(function)).@"fn".return_type orelse
         @compileError("function must have an explicit return type");
 }
 
-test "expected error: Db.exec invalid SQL returns SqliteExecFailed" {
+test "expected error: Db.exec invalid SQL returns DriverExecFailed" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -14,10 +15,10 @@ test "expected error: Db.exec invalid SQL returns SqliteExecFailed" {
     var db = try orm.Db.open(a, ":memory:");
     defer db.deinit();
 
-    try std.testing.expectError(error.SqliteExecFailed, db.exec("THIS IS NOT SQL;"));
+    try std.testing.expectError(error.DriverExecFailed, db.exec("THIS IS NOT SQL;"));
 }
 
-test "expected error: Stmt.init invalid SQL retures SqlitePrepareFailed" {
+test "expected error: Stmt.init invalid SQL retures DriverPrepareFailed" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -25,10 +26,10 @@ test "expected error: Stmt.init invalid SQL retures SqlitePrepareFailed" {
     var db = try orm.Db.open(a, ":memory:");
     defer db.deinit();
 
-    try std.testing.expectError(error.SqlitePrepareFailed, orm.Stmt.init(&db, "SELECT FROM ;"));
+    try std.testing.expectError(error.DriverPrepareFailed, orm.Stmt.init(&db, "SELECT FROM ;"));
 }
 
-test "expected error: Stmt.bindOne out-of-range index returns SqliteRange" {
+test "expected error: Stmt.bindOne out-of-range index returns DriverRange" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -39,10 +40,10 @@ test "expected error: Stmt.bindOne out-of-range index returns SqliteRange" {
     var st = try orm.Stmt.init(&db, "SELECT ?1;");
     defer st.deinit();
 
-    try std.testing.expectError(error.SqliteRange, st.bindOne(2, @as(i64, 1)));
+    try std.testing.expectError(error.DriverRange, st.bindOne(2, @as(i64, 1)));
 }
 
-test "expected error: Stmt.step SQL runtime error returns SqliteConstraint" {
+test "expected error: Stmt.step SQL runtime error returns DriverConstraint" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -72,11 +73,11 @@ test "expected error: Stmt.step SQL runtime error returns SqliteConstraint" {
         var name2 = try orm.types.OwnedText.fromConst(a, "alice");
         defer name2.deinit(a);
         try st2.bindOne(1, name2);
-        try std.testing.expectError(error.SqliteConstraint, st2.step());
+        try std.testing.expectError(error.DriverConstraint, st2.step());
     }
 }
 
-test "expected error: operations after close return SqliteMisuse" {
+test "expected error: operations after close return DriverMisuse" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -85,8 +86,8 @@ test "expected error: operations after close return SqliteMisuse" {
     db.close();
     db.close();
 
-    try std.testing.expectError(error.SqliteMisuse, db.exec("SELECT 1;"));
-    try std.testing.expectError(error.SqliteMisuse, orm.Stmt.init(&db, "SELECT 1;"));
+    try std.testing.expectError(error.DriverMisuse, db.exec("SELECT 1;"));
+    try std.testing.expectError(error.DriverMisuse, orm.Stmt.init(&db, "SELECT 1;"));
 }
 
 test "error contract: public APIs expose layered error sets" {
@@ -96,8 +97,8 @@ test "error contract: public APIs expose layered error sets" {
 }
 
 test "error contract: deprecated aggregate alias remains usable" {
-    const compat_exec: orm.errors.ZiteError = error.SqliteExecFailed;
+    const compat_exec: orm.errors.ZiteError = error.DriverExecFailed;
     const compat_null: orm.errors.ZiteError = error.UnexpectedNull;
-    try std.testing.expect(compat_exec == error.SqliteExecFailed);
+    try std.testing.expect(compat_exec == error.DriverExecFailed);
     try std.testing.expect(compat_null == error.UnexpectedNull);
 }

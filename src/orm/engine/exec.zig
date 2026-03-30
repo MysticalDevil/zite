@@ -1,4 +1,5 @@
-const Stmt = @import("../../db/stmt.zig").Stmt;
+const Driver = @import("../../driver/sqlite3.zig");
+const Stmt = @import("../../db/stmt.zig").Stmt(Driver);
 const meta = @import("../../core/meta.zig");
 const errors = @import("../../core/errors.zig");
 

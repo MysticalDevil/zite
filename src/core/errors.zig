@@ -4,50 +4,50 @@ pub const AllocError = error{
     OutOfMemory,
 };
 
-/// SQLite result codes normalized into stable library error names.
-pub const SqliteMappedError = error{
-    /// Generic sqlite error not mapped to a more specific code.
-    SqliteError,
+/// Driver result codes normalized into stable library error names.
+pub const DriverMappedError = error{
+    /// Generic driver error not mapped to a more specific code.
+    DriverError,
     /// Database is busy/locked.
-    SqliteBusy,
+    DriverBusy,
     /// Constraint violation (e.g., UNIQUE).
-    SqliteConstraint,
-    /// SQLite API misuse.
-    SqliteMisuse,
-    /// I/O error during sqlite operation.
-    SqliteIo,
+    DriverConstraint,
+    /// Driver API misuse.
+    DriverMisuse,
+    /// I/O error during driver operation.
+    DriverIo,
     /// Attempted write to readonly database.
-    SqliteReadonly,
+    DriverReadonly,
     /// Failed to open database.
-    SqliteCantOpen,
+    DriverCantOpen,
     /// Parameter/column index out of range.
-    SqliteRange,
-    /// Operation exceeds SQLite limits.
-    SqliteTooBig,
+    DriverRange,
+    /// Operation exceeds backend limits.
+    DriverTooBig,
 };
 
 /// Database connection lifecycle and execution errors.
-pub const DbError = AllocError || SqliteMappedError || error{
-    /// sqlite3_open failed.
-    SqliteOpenFailed,
-    /// sqlite3_exec failed.
-    SqliteExecFailed,
+pub const DbError = AllocError || DriverMappedError || error{
+    /// Driver open failed.
+    DriverOpenFailed,
+    /// Driver exec failed.
+    DriverExecFailed,
     /// Statement bookkeeping underflowed (double-finalize or mismatched lifecycle).
     StatementCountUnderflow,
 };
 
 /// Prepared statement lifecycle, bind, and execution errors.
 pub const StmtError = DbError || error{
-    /// sqlite3_prepare_v2 failed.
-    SqlitePrepareFailed,
-    /// sqlite3_reset failed.
-    SqliteResetFailed,
-    /// sqlite3_step failed.
-    SqliteStepFailed,
-    /// sqlite3_finalize failed.
-    SqliteFinalizeFailed,
-    /// sqlite3_bind_* failed.
-    SqliteBindFailed,
+    /// Driver prepare failed.
+    DriverPrepareFailed,
+    /// Driver reset failed.
+    DriverResetFailed,
+    /// Driver step failed.
+    DriverStepFailed,
+    /// Driver finalize failed.
+    DriverFinalizeFailed,
+    /// Driver bind failed.
+    DriverBindFailed,
     /// Unsupported type passed to bindOne.
     UnsupportedBindType,
     /// Row-backed handle or view accessed after its statement was finalized.

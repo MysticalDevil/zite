@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 
 test "Stmt: colIsNull + colTextOwned" {
     var gpa = std.heap.DebugAllocator(.{}).init;

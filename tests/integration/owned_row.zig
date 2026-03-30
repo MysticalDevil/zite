@@ -1,5 +1,6 @@
 const std = @import("std");
-const orm = @import("zite");
+const zite = @import("zite");
+const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
@@ -26,7 +27,7 @@ test "owned: findByIdOwned and findManyOwned free via deinit" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     var name1 = try orm.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
@@ -66,7 +67,7 @@ test "owned: empty text is released without leaks" {
 
     var db = try orm.Db.open(a, ":memory:");
     defer db.deinit();
-    var repo = orm.orm.repository(User, &db, a);
+    var repo = orm.repository(User, &db, a);
 
     const ddl = try orm.schema.createTableSqlFromMeta(a, User);
     defer a.free(ddl);
