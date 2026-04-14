@@ -3,7 +3,7 @@
 Typed SQLite access for Zig with a small ORM layer and explicit ownership rules.
 
 > [!IMPORTANT]
-> This project targets Zig `0.16-dev` (`master`) on `main` and is not compatible with Zig `0.15.x`.
+> This project targets Zig `0.16.0` on `main` and is not compatible with Zig `0.15.x`.
 
 ## Highlights
 
@@ -80,7 +80,7 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 ## API Stability
 
 - Stable: `Db(Driver)`, `Stmt(Driver)`, `orm(Driver)`, `schema`, `types`, `errors`.
-- Experimental: `AsyncPool` / `async_pool`. Built for Zig `0.16/master` `std.Io`; API may change.
+- Experimental: `AsyncPool` / `async_pool`. Built for Zig `0.16.0` `std.Io`; API may change.
 - Advanced/Low-level: `drivers.sqlite3`, `sqlutil`, `meta`. These are exposed for power users
   but may change when internals evolve.
 - Internal: `src/orm/engine.zig` and `src/orm/engine/*` are implementation details used by `orm` and are
@@ -258,7 +258,7 @@ shared connection, can still observe a race.
 
 ## AsyncPool
 
-`AsyncPool` is an experimental execution layer for Zig `0.16/master`. It uses
+`AsyncPool` is an experimental execution layer for Zig `0.16.0`. It uses
 `std.Io.concurrent` to run blocking sqlite work on independent connections.
 
 Important constraints:
@@ -363,7 +363,7 @@ Notable behavior-specific errors:
 
 ## Zig Version
 
-- The project targets Zig `0.16-dev` (`master`) on the `main` branch.
+- The project targets Zig `0.16.0` on the `main` branch.
 
 ## Examples
 

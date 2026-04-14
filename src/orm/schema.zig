@@ -55,6 +55,15 @@ fn sqliteDeclaredType(comptime T_in: type) []const u8 {
         .float, .comptime_float => "REAL",
         .bool => "INTEGER",
         .@"enum" => "INTEGER",
+        .pointer => |p| switch (p.size) {
+            .slice => {
+                if (p.child == u8) {
+                    return "TEXT";
+                }
+                @compileError("Unsupported field type for SQLite schema: " ++ @typeName(T));
+            },
+            else => @compileError("Unsupported field type for SQLite schema: " ++ @typeName(T)),
+        },
 
         else => @compileError("Unsupported field type for SQLite schema: " ++ @typeName(T)),
     };
@@ -192,8 +201,10 @@ pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) er
         try b.lit(",\n  UNIQUE (");
         comptime var ui: usize = 0;
         inline for (u) |field_name| {
-            if (!fieldExists(T, field_name)) {
-                @compileError("Unique constraint references unknown field: " ++ field_name);
+            comptime {
+                if (!fieldExists(T, field_name)) {
+                    @compileError("Unique constraint references unknown field: " ++ field_name);
+                }
             }
             if (comptime meta.isSkipped(field_name, m)) {
                 @compileError("Unique constraint references skipped field: " ++ field_name);

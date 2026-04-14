@@ -102,6 +102,67 @@ pub fn isPk(comptime name: []const u8, comptime pk: []const u8) bool {
     return std.mem.eql(u8, name, pk);
 }
 
+fn coerceStringSlice(comptime src: anytype) []const []const u8 {
+    const T = @TypeOf(src);
+    const ti = @typeInfo(T);
+    if (ti == .@"struct") {
+        const fields = ti.@"struct".fields;
+        const Arr = struct {
+            pub const data: [fields.len][]const u8 = blk: {
+                var arr: [fields.len][]const u8 = undefined;
+                for (fields, 0..) |f, i| {
+                    arr[i] = @field(src, f.name);
+                }
+                break :blk arr;
+            };
+        };
+        return &Arr.data;
+    }
+    return src;
+}
+
+fn coerceRenameSlice(comptime src: anytype) []const Rename {
+    const T = @TypeOf(src);
+    const ti = @typeInfo(T);
+    if (ti == .@"struct") {
+        const fields = ti.@"struct".fields;
+        const Arr = struct {
+            pub const data: [fields.len]Rename = blk: {
+                var arr: [fields.len]Rename = undefined;
+                for (fields, 0..) |f, i| {
+                    const anon = @field(src, f.name);
+                    arr[i] = .{
+                        .field = anon.field,
+                        .column = anon.column,
+                    };
+                }
+                break :blk arr;
+            };
+        };
+        return &Arr.data;
+    }
+    return src;
+}
+
+fn coerceUniqueSlice(comptime src: anytype) []const []const []const u8 {
+    const T = @TypeOf(src);
+    const ti = @typeInfo(T);
+    if (ti == .@"struct") {
+        const fields = ti.@"struct".fields;
+        const Arr = struct {
+            pub const data: [fields.len][]const []const u8 = blk: {
+                var arr: [fields.len][]const []const u8 = undefined;
+                for (fields, 0..) |f, i| {
+                    arr[i] = coerceStringSlice(@field(src, f.name));
+                }
+                break :blk arr;
+            };
+        };
+        return &Arr.data;
+    }
+    return src;
+}
+
 /// Reads Meta from a struct type, with defaults.
 pub fn getMeta(comptime T: type) Meta {
     if (!@hasDecl(T, "Meta")) {
@@ -118,9 +179,9 @@ pub fn getMeta(comptime T: type) Meta {
     const table: []const u8 = m.table;
     const pk: []const u8 = if (@hasField(MT, "primary_key")) m.primary_key else "id";
     const skip_pk: bool = if (@hasField(MT, "skip_primary_key_on_insert")) m.skip_primary_key_on_insert else true;
-    const skip: []const []const u8 = if (@hasField(MT, "skip")) m.skip else &.{};
-    const rename: []const Rename = if (@hasField(MT, "rename")) m.rename else &.{};
-    const unique: []const []const []const u8 = if (@hasField(MT, "unique")) m.unique else &.{};
+    const skip: []const []const u8 = if (@hasField(MT, "skip")) coerceStringSlice(m.skip) else &.{};
+    const rename: []const Rename = if (@hasField(MT, "rename")) coerceRenameSlice(m.rename) else &.{};
+    const unique: []const []const []const u8 = if (@hasField(MT, "unique")) coerceUniqueSlice(m.unique) else &.{};
     const order_by: []const u8 = if (@hasField(MT, "order_by")) m.order_by else "";
 
     comptime {

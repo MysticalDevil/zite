@@ -4,7 +4,7 @@ Each example is a standalone Zig file that imports the module by name. Run them
 with a module mapping and link sqlite3.
 
 > [!IMPORTANT]
-> Examples target Zig `0.16-dev` (`master`) and are not compatible with Zig `0.15.x`.
+> Examples target Zig `0.16.0` and are not compatible with Zig `0.15.x`.
 
 ## Run Commands
 
@@ -81,4 +81,4 @@ ZITE_NOTE_BODY="from-env" zig run --dep zite -Mroot=examples/process_init_env.zi
 - Most examples use `:memory:` databases for convenience; `async_pool_basic.zig` uses a file-backed database.
 - Transactions support both `commit()` and explicit `rollback()`.
 - `deleteWhereSql` requires a non-empty WHERE clause.
-- `AsyncPool` is experimental and requires Zig `0.16/master` `std.Io`.
+- `AsyncPool` is experimental and requires Zig `0.16.0` `std.Io`.
