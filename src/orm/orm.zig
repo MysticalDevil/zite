@@ -27,6 +27,8 @@ pub fn RowView(comptime T: type) type {
         owner: *RowCursor(T),
         row_generation: usize,
 
+        pub const __zite_async_guard: void = {};
+
         const Self = @This();
         const m = meta.getMeta(T);
 
@@ -114,6 +116,8 @@ pub fn RowHandle(comptime T: type) type {
     return struct {
         rows: RowCursor(T),
         row_generation: usize,
+
+        pub const __zite_async_guard: void = {};
 
         const Self = @This();
 
@@ -285,6 +289,8 @@ pub fn RowCursor(comptime T: type) type {
         st: Stmt,
         done: bool = false,
         cursor_generation: usize = 0,
+
+        pub const __zite_async_guard: void = {};
 
         const Self = @This();
 

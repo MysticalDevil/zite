@@ -63,9 +63,6 @@ pub fn Stmt(comptime Driver: type) type {
             };
 
             if (rc != Driver.OK) {
-                if (unregister_err) |err| {
-                    return err;
-                }
                 diag.logSqlite(self.db, rc, "driver_finalize", null);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverFinalizeFailed);
             }

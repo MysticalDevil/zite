@@ -216,27 +216,12 @@ fn isAsyncResultAllowed(comptime T: type) bool {
 }
 
 fn forbiddenAsyncStructType(comptime T: type) bool {
-    return hasStructField(T, "owner") and hasStructField(T, "row_generation") or
-        hasStructField(T, "rows") and hasStructField(T, "row_generation") or
-        hasStructField(T, "st") and hasStructField(T, "done") and hasStructField(T, "cursor_generation");
+    return @hasDecl(T, "__zite_async_guard");
 }
 
 fn forbiddenLeafType(comptime T: type) bool {
     if (T == Db or T == Stmt) {
         return true;
-    }
-    return false;
-}
-
-fn hasStructField(comptime T: type, comptime field_name: []const u8) bool {
-    const ti = @typeInfo(T);
-    if (ti != .@"struct") {
-        return false;
-    }
-    inline for (ti.@"struct".fields) |f| {
-        if (comptime std.mem.eql(u8, f.name, field_name)) {
-            return true;
-        }
     }
     return false;
 }

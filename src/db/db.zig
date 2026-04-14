@@ -70,7 +70,10 @@ pub fn Db(comptime Driver: type) type {
                 if (db_handle) |h| {
                     var tmp = Self{ .allocator = allocator, .handle = h };
                     diag.logSqlite(&tmp, rc, "driver_open", null);
-                    _ = Driver.db.closeImmediate(h);
+                    const close_rc = Driver.db.closeImmediate(h);
+                    if (close_rc != Driver.OK) {
+                        diag.logSqlite(&tmp, close_rc, "driver_closeImmediate", null);
+                    }
                 } else {
                     std.log.warn("driver failure what=driver_open rc={} msg=handle_null", .{rc});
                 }
