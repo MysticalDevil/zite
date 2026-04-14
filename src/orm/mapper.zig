@@ -17,7 +17,7 @@ pub const UpsertResult = enum {
 /// Optional clauses for findMany queries.
 pub const FindManyOptions = engine.sql.FindManyOptions;
 
-fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
+pub fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     const ti = @typeInfo(T);
     if (ti != .@"struct") {
         @compileError("pkFieldType expects a struct type");
@@ -31,7 +31,7 @@ fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     @compileError("Type " ++ @typeName(T) ++ " missing primary key field: " ++ m.primary_key);
 }
 
-fn pkFieldValue(comptime T: type, entity: T, comptime m: meta.Meta) pkFieldType(T, m) {
+pub fn pkFieldValue(comptime T: type, entity: T, comptime m: meta.Meta) pkFieldType(T, m) {
     const ti = @typeInfo(T);
     if (ti != .@"struct") {
         @compileError("pkFieldValue expects a struct type");
@@ -262,26 +262,33 @@ pub fn upsert(comptime T: type, db: *Db, entity: T) errors.OrmError!UpsertResult
 
     if (m.skip_primary_key_on_insert) {
         if (try existsById(T, db, pk_value)) {
-            _ = try update(T, db, entity);
-            return .updated;
+            if ((try update(T, db, entity)) >= 0) {
+                return .updated;
+            }
         }
 
-        _ = try insert(T, db, entity);
-        return .inserted;
+        if ((try insert(T, db, entity)) >= 0) {
+            return .inserted;
+        }
     }
 
-    _ = insert(T, db, entity) catch |err| {
+    const rowid = insert(T, db, entity) catch |err| {
         if (err != error.DriverConstraint) {
             return err;
         }
 
         if (try existsById(T, db, pk_value)) {
-            _ = try update(T, db, entity);
-            return .updated;
+            if ((try update(T, db, entity)) >= 0) {
+                return .updated;
+            }
         }
         return err;
     };
-    return .inserted;
+    if (rowid >= 0) {
+        return .inserted;
+    }
+
+    return error.DriverError;
 }
 
 /// Deletes a record by primary key; returns number of rows changed.

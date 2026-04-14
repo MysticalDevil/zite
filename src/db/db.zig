@@ -69,10 +69,10 @@ pub fn Db(comptime Driver: type) type {
             if (rc != Driver.OK or db_handle == null) {
                 if (db_handle) |h| {
                     var tmp = Self{ .allocator = allocator, .handle = h };
-                    diag.logSqlite(&tmp, rc, "driver_open", null);
+                    diag.logSqlite(Driver, &tmp, rc, "driver_open", null);
                     const close_rc = Driver.db.closeImmediate(h);
                     if (close_rc != Driver.OK) {
-                        diag.logSqlite(&tmp, close_rc, "driver_closeImmediate", null);
+                        diag.logSqlite(Driver, &tmp, close_rc, "driver_closeImmediate", null);
                     }
                 } else {
                     std.log.warn("driver failure what=driver_open rc={} msg=handle_null", .{rc});
@@ -90,7 +90,7 @@ pub fn Db(comptime Driver: type) type {
             }
             const rc = Driver.db.closeDeferred(self.handle);
             if (rc != Driver.OK) {
-                diag.logSqlite(self, rc, "driver_close_deferred", null);
+                diag.logSqlite(Driver, self, rc, "driver_close_deferred", null);
             }
         }
 
@@ -108,7 +108,7 @@ pub fn Db(comptime Driver: type) type {
             const rc = Driver.db.exec(self.handle, sql_z.ptr);
 
             if (rc != Driver.OK) {
-                diag.logSqlite(self, rc, "driver_exec", sql);
+                diag.logSqlite(Driver, self, rc, "driver_exec", sql);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverExecFailed);
             }
         }

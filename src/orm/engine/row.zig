@@ -151,7 +151,7 @@ pub fn freeOwnedRow(comptime T: type, allocator: std.mem.Allocator, value: *T) v
     }
 }
 
-fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: anytype) void {
+fn freeField(comptime FieldT: type, allocator: std.mem.Allocator, field_ptr: *FieldT) void {
     if (FieldT == types.OwnedText) {
         field_ptr.deinit(allocator);
         return;

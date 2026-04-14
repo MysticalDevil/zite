@@ -164,7 +164,7 @@ pub fn Repository(comptime T: type) type {
             return mapper.upsert(T, self.db, entity);
         }
 
-        pub fn deleteById(self: *Self, id: anytype) errors.OrmError!i32 {
+        pub fn deleteById(self: *Self, id: mapper.pkFieldType(T, meta.getMeta(T))) errors.OrmError!i32 {
             return mapper.deleteById(T, self.db, id);
         }
 
@@ -185,7 +185,7 @@ pub fn Repository(comptime T: type) type {
             return self.db.beginTx(mode);
         }
 
-        pub fn findById(self: *Self, id: anytype) errors.OrmError!?T {
+        pub fn findById(self: *Self, id: mapper.pkFieldType(T, meta.getMeta(T))) errors.OrmError!?T {
             return mapper.findById(T, self.db, self.owned_allocator, id);
         }
 
@@ -193,7 +193,7 @@ pub fn Repository(comptime T: type) type {
             return Query(T).init(self.db, self.owned_allocator);
         }
 
-        pub fn findByIdOwned(self: *Self, id: anytype) errors.OrmError!?OwnedRow(T) {
+        pub fn findByIdOwned(self: *Self, id: mapper.pkFieldType(T, meta.getMeta(T))) errors.OrmError!?OwnedRow(T) {
             if (try mapper.findById(T, self.db, self.owned_allocator, id)) |v| {
                 return .{
                     .allocator = self.owned_allocator,
@@ -203,7 +203,7 @@ pub fn Repository(comptime T: type) type {
             return null;
         }
 
-        pub fn findByIdHandle(self: *Self, id: anytype) errors.OrmError!?RowHandle(T) {
+        pub fn findByIdHandle(self: *Self, id: mapper.pkFieldType(T, meta.getMeta(T))) errors.OrmError!?RowHandle(T) {
             const pk_field = comptime meta.getMeta(T).primary_key;
             var q = self.query();
             // Safe: q.deinit() only releases query builder buffers.
@@ -366,7 +366,7 @@ pub fn Query(comptime T: type) type {
             self.order_buf.deinit(self.db.allocator);
         }
 
-        pub fn whereEq(self: *Self, comptime field: []const u8, value: anytype) errors.OrmError!void {
+        pub fn whereEq(self: *Self, comptime field: []const u8, value: fieldValueType(field)) errors.OrmError!void {
             const column = comptime columnForField(field);
             const idx = self.params.items.len + 1;
             const where_len_before = self.where_buf.items.len;
@@ -381,7 +381,8 @@ pub fn Query(comptime T: type) type {
             try self.where_buf.appendSlice(self.db.allocator, column);
             try self.where_buf.appendSlice(self.db.allocator, "\"=?");
             try self.where_buf.print(self.db.allocator, "{}", .{idx});
-            try self.appendParam(value);
+            const p = try toQueryParam(value);
+            try self.params.append(self.db.allocator, p);
         }
 
         /// Appends a SQL WHERE fragment and binds params using fragment-local
@@ -419,7 +420,8 @@ pub fn Query(comptime T: type) type {
                 return error.BindAllExpectedStructOrTuple;
             }
             inline for (ti.@"struct".fields) |f| {
-                try self.appendParam(@field(params, f.name));
+                const p = try toQueryParam(@field(params, f.name));
+                try self.params.append(self.db.allocator, p);
             }
         }
 
@@ -537,9 +539,16 @@ pub fn Query(comptime T: type) type {
             }
         }
 
-        fn appendParam(self: *Self, value: anytype) errors.OrmError!void {
-            const p = try toQueryParam(value);
-            try self.params.append(self.db.allocator, p);
+        fn fieldValueType(comptime field: []const u8) type {
+            inline for (@typeInfo(T).@"struct".fields) |f| {
+                if (comptime std.mem.eql(u8, f.name, field)) {
+                    if (comptime meta.isSkipped(f.name, m)) {
+                        @compileError("Field " ++ field ++ " is skipped in Meta");
+                    }
+                    return f.type;
+                }
+            }
+            @compileError("Unknown field for " ++ @typeName(T) ++ ": " ++ field);
         }
 
         fn columnForField(comptime field: []const u8) []const u8 {

@@ -6,6 +6,7 @@ const orm = @import("orm/orm.zig");
 const mapper = @import("orm/mapper.zig");
 const errors = @import("core/errors.zig");
 const types = @import("core/types.zig");
+const meta = @import("core/meta.zig");
 
 pub const AsyncPool = struct {
     allocator: std.mem.Allocator,
@@ -15,8 +16,7 @@ pub const AsyncPool = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: std.mem.Allocator, db_path: []const u8, options: Options) errors.AllocError!Self {
-        _ = options;
+    pub fn init(allocator: std.mem.Allocator, db_path: []const u8, _: Options) errors.AllocError!Self {
         return .{
             .allocator = allocator,
             .db_path = try allocator.dupe(u8, db_path),
@@ -91,9 +91,9 @@ pub const AsyncPool = struct {
         return self.withConnection(io, Context{ .entity = entity }, Runner.run);
     }
 
-    pub fn deleteById(self: *const Self, io: std.Io, comptime T: type, id: anytype) errors.AsyncOrmError!i32 {
+    pub fn deleteById(self: *const Self, io: std.Io, comptime T: type, id: mapper.pkFieldType(T, meta.getMeta(T))) errors.AsyncOrmError!i32 {
         const Context = struct {
-            id: @TypeOf(id),
+            id: mapper.pkFieldType(T, meta.getMeta(T)),
         };
         const Runner = struct {
             fn run(db: *Db, ctx: Context) errors.OrmError!i32 {
@@ -109,11 +109,11 @@ pub const AsyncPool = struct {
         io: std.Io,
         comptime T: type,
         owned_allocator: std.mem.Allocator,
-        id: anytype,
+        id: mapper.pkFieldType(T, meta.getMeta(T)),
     ) errors.AsyncOrmError!?orm.OwnedRow(T) {
         const Context = struct {
             owned_allocator: std.mem.Allocator,
-            id: @TypeOf(id),
+            id: mapper.pkFieldType(T, meta.getMeta(T)),
         };
         const Runner = struct {
             fn run(db: *Db, ctx: Context) errors.OrmError!?orm.OwnedRow(T) {

@@ -41,7 +41,7 @@ pub fn Stmt(comptime Driver: type) type {
                 &stmt_opt,
             );
             if (rc != Driver.OK or stmt_opt == null) {
-                diag.logSqlite(db, rc, "driver_prepare", sql);
+                diag.logSqlite(Driver, db, rc, "driver_prepare", sql);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverPrepareFailed);
             }
 
@@ -63,7 +63,7 @@ pub fn Stmt(comptime Driver: type) type {
             };
 
             if (rc != Driver.OK) {
-                diag.logSqlite(self.db, rc, "driver_finalize", null);
+                diag.logSqlite(Driver, self.db, rc, "driver_finalize", null);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverFinalizeFailed);
             }
             if (unregister_err) |err| {
@@ -93,7 +93,7 @@ pub fn Stmt(comptime Driver: type) type {
             try self.ensureOpen();
             const rc = Driver.stmt.reset(self.stmt);
             if (rc != Driver.OK) {
-                diag.logSqlite(self.db, rc, "driver_reset", null);
+                diag.logSqlite(Driver, self.db, rc, "driver_reset", null);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverResetFailed);
             }
         }
@@ -107,7 +107,7 @@ pub fn Stmt(comptime Driver: type) type {
                 Driver.ROW => .row,
                 Driver.DONE => .done,
                 else => blk: {
-                    diag.logSqlite(self.db, rc, "driver_step", null);
+                    diag.logSqlite(Driver, self.db, rc, "driver_step", null);
                     break :blk driver_errors.mapDriverRc(Driver, rc, error.DriverStepFailed);
                 },
             };
@@ -119,7 +119,7 @@ pub fn Stmt(comptime Driver: type) type {
             try self.ensureOpen();
             const rc = Driver.stmt.bindNull(self.stmt, idx);
             if (rc != Driver.OK) {
-                diag.logSqlite(self.db, rc, "driver_bind_null", null);
+                diag.logSqlite(Driver, self.db, rc, "driver_bind_null", null);
                 diag.logBind("null", idx);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
             }
@@ -130,7 +130,7 @@ pub fn Stmt(comptime Driver: type) type {
             try self.ensureOpen();
             const rc = Driver.stmt.bindInt64(self.stmt, idx, value);
             if (rc != Driver.OK) {
-                diag.logSqlite(self.db, rc, "driver_bind_int64", null);
+                diag.logSqlite(Driver, self.db, rc, "driver_bind_int64", null);
                 diag.logBind("int64", idx);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
             }
@@ -141,7 +141,7 @@ pub fn Stmt(comptime Driver: type) type {
             try self.ensureOpen();
             const rc = Driver.stmt.bindDouble(self.stmt, idx, @as(f64, @floatCast(value)));
             if (rc != Driver.OK) {
-                diag.logSqlite(self.db, rc, "driver_bind_double", null);
+                diag.logSqlite(Driver, self.db, rc, "driver_bind_double", null);
                 diag.logBind("double", idx);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
             }
@@ -152,7 +152,7 @@ pub fn Stmt(comptime Driver: type) type {
             try self.ensureOpen();
             const rc = Driver.stmt.bindInt(self.stmt, idx, if (value) 1 else 0);
             if (rc != Driver.OK) {
-                diag.logSqlite(self.db, rc, "driver_bind_int", null);
+                diag.logSqlite(Driver, self.db, rc, "driver_bind_int", null);
                 diag.logBind("int", idx);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
             }
@@ -164,7 +164,7 @@ pub fn Stmt(comptime Driver: type) type {
             const n: i32 = @intCast(value.len);
             const rc = Driver.stmt.bindText(self.stmt, idx, value.ptr, n);
             if (rc != Driver.OK) {
-                diag.logSqlite(self.db, rc, "driver_bind_text", null);
+                diag.logSqlite(Driver, self.db, rc, "driver_bind_text", null);
                 diag.logBind("text", idx);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
             }
@@ -176,7 +176,7 @@ pub fn Stmt(comptime Driver: type) type {
             const n: i32 = @intCast(value.len);
             const rc = Driver.stmt.bindBlob(self.stmt, idx, value.ptr, n);
             if (rc != Driver.OK) {
-                diag.logSqlite(self.db, rc, "driver_bind_blob", null);
+                diag.logSqlite(Driver, self.db, rc, "driver_bind_blob", null);
                 diag.logBind("blob", idx);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
             }

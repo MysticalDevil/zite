@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const Db = @import("db.zig").Db;
 
 fn sqlSnippet(sql: []const u8) []const u8 {
     const max: usize = 200;
@@ -14,7 +15,7 @@ fn enabledInThisBuild() bool {
 }
 
 /// Logs a driver failure with optional SQL snippet (if enabled).
-pub fn logSqlite(db: anytype, rc: i32, comptime what: []const u8, sql: ?[]const u8) void {
+pub fn logSqlite(comptime Driver: type, db: *Db(Driver), rc: i32, comptime what: []const u8, sql: ?[]const u8) void {
     if (!enabledInThisBuild()) {
         return;
     }
