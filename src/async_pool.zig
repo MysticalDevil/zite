@@ -1,12 +1,14 @@
 const std = @import("std");
+const zite = @import("root.zig");
 const Driver = @import("driver/sqlite3.zig");
 const Db = @import("db/db.zig").Db(Driver);
 const Stmt = @import("db/stmt.zig").Stmt(Driver);
-const orm = @import("orm/orm.zig");
 const mapper = @import("orm/mapper.zig");
-const errors = @import("core/errors.zig");
-const types = @import("core/types.zig");
-const meta = @import("core/meta.zig");
+const cursor = @import("orm/cursor.zig");
+const repository = @import("orm/repository.zig");
+const errors = zite.errors;
+const types = zite.types;
+const meta = zite.meta;
 
 pub const AsyncPool = struct {
     allocator: std.mem.Allocator,
@@ -58,7 +60,7 @@ pub const AsyncPool = struct {
         };
         const Runner = struct {
             fn run(db: *Db, ctx: Context) errors.OrmError!i64 {
-                var repo = orm.repository(T, db, db.allocator);
+                var repo = repository.repository(T, db, db.allocator);
                 return repo.insert(ctx.entity);
             }
         };
@@ -71,20 +73,20 @@ pub const AsyncPool = struct {
         };
         const Runner = struct {
             fn run(db: *Db, ctx: Context) errors.OrmError!i32 {
-                var repo = orm.repository(T, db, db.allocator);
+                var repo = repository.repository(T, db, db.allocator);
                 return repo.update(ctx.entity);
             }
         };
         return self.withConnection(io, Context{ .entity = entity }, Runner.run);
     }
 
-    pub fn upsert(self: *const Self, io: std.Io, comptime T: type, entity: T) errors.AsyncOrmError!orm.UpsertResult {
+    pub fn upsert(self: *const Self, io: std.Io, comptime T: type, entity: T) errors.AsyncOrmError!zite.UpsertResult {
         const Context = struct {
             entity: T,
         };
         const Runner = struct {
-            fn run(db: *Db, ctx: Context) errors.OrmError!orm.UpsertResult {
-                var repo = orm.repository(T, db, db.allocator);
+            fn run(db: *Db, ctx: Context) errors.OrmError!zite.UpsertResult {
+                var repo = repository.repository(T, db, db.allocator);
                 return repo.upsert(ctx.entity);
             }
         };
@@ -97,7 +99,7 @@ pub const AsyncPool = struct {
         };
         const Runner = struct {
             fn run(db: *Db, ctx: Context) errors.OrmError!i32 {
-                var repo = orm.repository(T, db, db.allocator);
+                var repo = repository.repository(T, db, db.allocator);
                 return repo.deleteById(ctx.id);
             }
         };
@@ -110,14 +112,14 @@ pub const AsyncPool = struct {
         comptime T: type,
         owned_allocator: std.mem.Allocator,
         id: mapper.pkFieldType(T, meta.getMeta(T)),
-    ) errors.AsyncOrmError!?orm.OwnedRow(T) {
+    ) errors.AsyncOrmError!?mapper.OwnedRow(T) {
         const Context = struct {
             owned_allocator: std.mem.Allocator,
             id: mapper.pkFieldType(T, meta.getMeta(T)),
         };
         const Runner = struct {
-            fn run(db: *Db, ctx: Context) errors.OrmError!?orm.OwnedRow(T) {
-                var repo = orm.repository(T, db, ctx.owned_allocator);
+            fn run(db: *Db, ctx: Context) errors.OrmError!?mapper.OwnedRow(T) {
+                var repo = repository.repository(T, db, ctx.owned_allocator);
                 return repo.findByIdOwned(ctx.id);
             }
         };
@@ -142,7 +144,7 @@ pub const AsyncPool = struct {
         };
         const Runner = struct {
             fn run(db: *Db, ctx: Context) errors.OrmError!?T {
-                var repo = orm.repository(T, db, ctx.owned_allocator);
+                var repo = repository.repository(T, db, ctx.owned_allocator);
                 return repo.findOneSql(ctx.where_clause, ctx.params);
             }
         };
@@ -215,6 +217,9 @@ fn isAsyncResultAllowed(comptime T: type) bool {
     }
 }
 
+/// Compile-time guard: types that declare `__zite_async_guard` are forbidden
+/// from crossing async boundaries. This is enforced by `assertAsyncResultAllowed`
+/// which triggers a `@compileError` when such types appear in worker results.
 fn forbiddenAsyncStructType(comptime T: type) bool {
     return @hasDecl(T, "__zite_async_guard");
 }
@@ -237,7 +242,7 @@ const GuardRow = struct {
 };
 
 test "async_pool: result type guard allows owned rows and rejects row views" {
-    try std.testing.expect(isAsyncResultAllowed(orm.OwnedRow(GuardRow)));
-    try std.testing.expect(!isAsyncResultAllowed(orm.RowHandle(GuardRow)));
-    try std.testing.expect(!isAsyncResultAllowed(orm.RowView(GuardRow)));
+    try std.testing.expect(isAsyncResultAllowed(mapper.OwnedRow(GuardRow)));
+    try std.testing.expect(!isAsyncResultAllowed(cursor.RowHandle(GuardRow)));
+    try std.testing.expect(!isAsyncResultAllowed(cursor.RowView(GuardRow)));
 }

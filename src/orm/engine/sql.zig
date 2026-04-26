@@ -1,16 +1,12 @@
 const std = @import("std");
+const orm_root = @import("../root.zig");
 const Driver = @import("../../driver/sqlite3.zig");
 const Db = @import("../../db/db.zig").Db(Driver);
 const Stmt = @import("../../db/stmt.zig").Stmt(Driver);
 const meta = @import("../../core/meta.zig");
 const sqlutil = @import("../../core/sqlutil.zig");
 const errors = @import("../../core/errors.zig");
-
-pub const FindManyOptions = struct {
-    order_by: ?[]const u8 = null,
-    limit: ?usize = null,
-    offset: ?usize = null,
-};
+const FindManyOptions = orm_root.FindManyOptions;
 
 fn appendSelectColumns(
     comptime T: type,

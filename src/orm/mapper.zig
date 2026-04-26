@@ -1,21 +1,15 @@
 const std = @import("std");
+const orm_root = @import("root.zig");
 const Driver = @import("../driver/sqlite3.zig");
 const Db = @import("../db/db.zig").Db(Driver);
 const Stmt = @import("../db/stmt.zig").Stmt(Driver);
 const types = @import("../core/types.zig");
-const engine = @import("engine.zig");
-
 const meta = @import("../core/meta.zig");
 const errors = @import("../core/errors.zig");
+const engine = @import("engine.zig");
 
-/// Result tag returned by upsert.
-pub const UpsertResult = enum {
-    inserted,
-    updated,
-};
-
-/// Optional clauses for findMany queries.
-pub const FindManyOptions = engine.sql.FindManyOptions;
+const UpsertResult = orm_root.UpsertResult;
+const FindManyOptions = orm_root.FindManyOptions;
 
 pub fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
     const ti = @typeInfo(T);
