@@ -19,10 +19,7 @@ pub const OwnedText = struct {
 
     /// Frees the owned buffer.
     pub fn deinit(self: *OwnedText, a: std.mem.Allocator) void {
-        const empty: []u8 = &.{};
-        if (self.value.ptr != empty.ptr) {
-            a.free(self.value);
-        }
+        a.free(self.value);
         self.value = &[_]u8{};
     }
 };
@@ -40,10 +37,7 @@ pub const OwnedBlob = struct {
 
     /// Frees the owned buffer.
     pub fn deinit(self: *OwnedBlob, a: std.mem.Allocator) void {
-        const empty: []u8 = &.{};
-        if (self.value.ptr != empty.ptr) {
-            a.free(self.value);
-        }
+        a.free(self.value);
         self.value = &[_]u8{};
     }
 };

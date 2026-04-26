@@ -3,7 +3,7 @@ pub const OK: Rc = 0;
 pub const ROW: Rc = 100;
 pub const DONE: Rc = 101;
 pub const NULL: Rc = 5;
-pub const BUSY: Rc = 5;
+pub const BUSY: Rc = 6;
 pub const CONSTRAINT: Rc = 19;
 pub const MISUSE: Rc = 21;
 pub const IOERR: Rc = 10;
@@ -74,6 +74,12 @@ pub const stmt = struct {
         @compileError("zite.drivers.pocket is not implemented yet");
     }
     pub fn bindBlob(_: StmtHandle, _: i32, _: [*]const u8, _: i32) Rc {
+        @compileError("zite.drivers.pocket is not implemented yet");
+    }
+    pub fn bindTextStatic(_: StmtHandle, _: i32, _: [*]const u8, _: i32) Rc {
+        @compileError("zite.drivers.pocket is not implemented yet");
+    }
+    pub fn bindBlobStatic(_: StmtHandle, _: i32, _: [*]const u8, _: i32) Rc {
         @compileError("zite.drivers.pocket is not implemented yet");
     }
     pub fn columnType(_: StmtHandle, _: i32) Rc {

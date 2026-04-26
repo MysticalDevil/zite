@@ -14,6 +14,7 @@ pub fn Db(comptime Driver: type) type {
         /// Opaque driver handle.
         handle: Driver.DbHandle,
         /// Tracks active statements created from this Db to warn on close.
+        /// Updated with atomic operations for thread-safety.
         active_stmts: i32 = 0,
 
         const Self = @This();
@@ -144,16 +145,27 @@ pub fn Db(comptime Driver: type) type {
 
         /// Records that a new statement has been prepared.
         pub fn registerStmt(self: *Self) void {
-            self.active_stmts += 1;
+            while (true) {
+                const current = @atomicLoad(i32, &self.active_stmts, .monotonic);
+                if (@cmpxchgWeak(i32, &self.active_stmts, current, current + 1, .monotonic, .monotonic) == null) {
+                    break;
+                }
+            }
         }
 
         /// Records that a statement has been finalized.
         /// Returns an error if the counter would underflow.
         pub fn unregisterStmt(self: *Self) errors.DbError!void {
-            if (self.active_stmts <= 0) {
-                return error.StatementCountUnderflow;
+            while (true) {
+                const current = @atomicLoad(i32, &self.active_stmts, .monotonic);
+                if (current <= 0) {
+                    return error.StatementCountUnderflow;
+                }
+                const next = current - 1;
+                if (@cmpxchgWeak(i32, &self.active_stmts, current, next, .monotonic, .monotonic) == null) {
+                    return;
+                }
             }
-            self.active_stmts -= 1;
         }
     };
 }

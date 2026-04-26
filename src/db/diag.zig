@@ -15,6 +15,8 @@ fn enabledInThisBuild() bool {
 }
 
 /// Logs a driver failure with optional SQL snippet (if enabled).
+/// Safe to call with partially-initialized handles (e.g. after a failed open),
+/// because `Driver.db.errmsg` is required to work on any non-null handle.
 pub fn logSqlite(comptime Driver: type, db: *Db(Driver), rc: i32, comptime what: []const u8, sql: ?[]const u8) void {
     if (!enabledInThisBuild()) {
         return;

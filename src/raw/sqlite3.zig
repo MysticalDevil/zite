@@ -1,6 +1,5 @@
 /// Direct C bindings to sqlite3 (raw FFI).
 /// Hand-written extern declarations to avoid @cImport (deprecated in Zig 0.16).
-
 pub const sqlite3 = opaque {};
 pub const sqlite3_stmt = opaque {};
 
@@ -106,6 +105,8 @@ pub const SQLITE_DONE: c_int = 101;
 pub const SQLITE_NULL: c_int = 5;
 /// SQLITE_TRANSIENT
 pub const SQLITE_TRANSIENT = @as(?*const fn (?*anyopaque) callconv(.c) void, @ptrFromInt(~@as(usize, 0)));
+/// SQLITE_STATIC
+pub const SQLITE_STATIC = @as(?*const fn (?*anyopaque) callconv(.c) void, @ptrFromInt(0));
 /// SQLITE_BUSY
 pub const SQLITE_BUSY: c_int = 5;
 /// SQLITE_CONSTRAINT

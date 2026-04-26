@@ -159,6 +159,7 @@ pub fn Stmt(comptime Driver: type) type {
         }
 
         /// Binds a UTF-8 string to a 1-based parameter index.
+        /// SQLite copies the data immediately (SQLITE_TRANSIENT).
         pub fn bindText(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
             try self.ensureOpen();
             const n: i32 = @intCast(value.len);
@@ -170,7 +171,21 @@ pub fn Stmt(comptime Driver: type) type {
             }
         }
 
+        /// Binds a UTF-8 string without copying.
+        /// Caller must ensure `value` remains valid until the statement is stepped/finalized.
+        pub fn bindTextStatic(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
+            try self.ensureOpen();
+            const n: i32 = @intCast(value.len);
+            const rc = Driver.stmt.bindTextStatic(self.stmt, idx, value.ptr, n);
+            if (rc != Driver.OK) {
+                diag.logSqlite(Driver, self.db, rc, "driver_bind_text_static", null);
+                diag.logBind("text_static", idx);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
+            }
+        }
+
         /// Binds a blob to a 1-based parameter index.
+        /// SQLite copies the data immediately (SQLITE_TRANSIENT).
         pub fn bindBlob(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
             try self.ensureOpen();
             const n: i32 = @intCast(value.len);
@@ -178,6 +193,19 @@ pub fn Stmt(comptime Driver: type) type {
             if (rc != Driver.OK) {
                 diag.logSqlite(Driver, self.db, rc, "driver_bind_blob", null);
                 diag.logBind("blob", idx);
+                return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
+            }
+        }
+
+        /// Binds a blob without copying.
+        /// Caller must ensure `value` remains valid until the statement is stepped/finalized.
+        pub fn bindBlobStatic(self: *Self, idx: i32, value: []const u8) errors.StmtError!void {
+            try self.ensureOpen();
+            const n: i32 = @intCast(value.len);
+            const rc = Driver.stmt.bindBlobStatic(self.stmt, idx, value.ptr, n);
+            if (rc != Driver.OK) {
+                diag.logSqlite(Driver, self.db, rc, "driver_bind_blob_static", null);
+                diag.logBind("blob_static", idx);
                 return driver_errors.mapDriverRc(Driver, rc, error.DriverBindFailed);
             }
         }
@@ -217,7 +245,8 @@ pub fn Stmt(comptime Driver: type) type {
         /// Bind multiple parameters at once: params should be passed as a tuple (anonymous struct): .{ a, b, c }
         /// Rules:
         /// - Parameter indices start at 1 (SQLite convention)
-        /// - Supports tuples / regular structs (field order matters)
+        /// - Supports tuples / regular structs
+        /// - Field order matters: fields are bound in declaration order. Zig does not guarantee this order across compiler versions.
         pub fn bindAll(self: *Self, params: anytype) errors.StmtError!void {
             const P = @TypeOf(params);
             const ti = @typeInfo(P);
@@ -259,6 +288,7 @@ pub fn Stmt(comptime Driver: type) type {
         }
 
         /// Returns an owned copy of TEXT data (caller frees with allocator).
+        /// Even empty non-null TEXT returns an allocated slice so that `free` is always safe.
         pub fn colTextOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.RowReadError!?[]u8 {
             try self.ensureOpen();
             if (try self.colIsNull(col)) {
@@ -268,15 +298,13 @@ pub fn Stmt(comptime Driver: type) type {
             const n = Driver.stmt.columnBytes(self.stmt, col);
             const len: usize = @intCast(n);
             if (len == 0) {
-                return &.{};
+                return try a.alloc(u8, 0);
             }
 
-            const p = Driver.stmt.columnText(self.stmt, col) orelse return &.{};
+            const p = Driver.stmt.columnText(self.stmt, col) orelse return try a.alloc(u8, 0);
             const src: [*]const u8 = @ptrCast(p);
             const out = try a.alloc(u8, len);
-            if (len != 0) {
-                std.mem.copyForwards(u8, out, src[0..len]);
-            }
+            std.mem.copyForwards(u8, out, src[0..len]);
             return out;
         }
 
@@ -299,6 +327,7 @@ pub fn Stmt(comptime Driver: type) type {
         }
 
         /// Returns an owned copy of BLOB data (caller frees with allocator).
+        /// Even empty non-null BLOB returns an allocated slice so that `free` is always safe.
         pub fn colBlobOwned(self: *Self, a: std.mem.Allocator, col: i32) errors.RowReadError!?[]u8 {
             try self.ensureOpen();
             if (try self.colIsNull(col)) {
@@ -308,15 +337,13 @@ pub fn Stmt(comptime Driver: type) type {
             const n = Driver.stmt.columnBytes(self.stmt, col);
             const len: usize = @intCast(n);
             if (len == 0) {
-                return &.{};
+                return try a.alloc(u8, 0);
             }
 
-            const p = Driver.stmt.columnBlob(self.stmt, col) orelse return &.{};
+            const p = Driver.stmt.columnBlob(self.stmt, col) orelse return try a.alloc(u8, 0);
             const src: [*]const u8 = @ptrCast(p);
             const out = try a.alloc(u8, len);
-            if (len != 0) {
-                std.mem.copyForwards(u8, out, src[0..len]);
-            }
+            std.mem.copyForwards(u8, out, src[0..len]);
             return out;
         }
 

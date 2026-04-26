@@ -6,7 +6,6 @@ pub const OK: Rc = @intCast(raw.SQLITE_OK);
 pub const ROW: Rc = @intCast(raw.SQLITE_ROW);
 pub const DONE: Rc = @intCast(raw.SQLITE_DONE);
 pub const NULL: Rc = @intCast(raw.SQLITE_NULL);
-pub const TRANSIENT = raw.SQLITE_TRANSIENT;
 pub const BUSY: Rc = @intCast(raw.SQLITE_BUSY);
 pub const CONSTRAINT: Rc = @intCast(raw.SQLITE_CONSTRAINT);
 pub const MISUSE: Rc = @intCast(raw.SQLITE_MISUSE);
@@ -109,8 +108,16 @@ pub const stmt = struct {
         return @intCast(raw.sqlite3_bind_text(stmt_handle.ptr, @intCast(idx), value, @intCast(n), raw.SQLITE_TRANSIENT));
     }
 
+    pub fn bindTextStatic(stmt_handle: StmtHandle, idx: i32, value: [*]const u8, n: i32) Rc {
+        return @intCast(raw.sqlite3_bind_text(stmt_handle.ptr, @intCast(idx), value, @intCast(n), raw.SQLITE_STATIC));
+    }
+
     pub fn bindBlob(stmt_handle: StmtHandle, idx: i32, value: [*]const u8, n: i32) Rc {
         return @intCast(raw.sqlite3_bind_blob(stmt_handle.ptr, @intCast(idx), value, @intCast(n), raw.SQLITE_TRANSIENT));
+    }
+
+    pub fn bindBlobStatic(stmt_handle: StmtHandle, idx: i32, value: [*]const u8, n: i32) Rc {
+        return @intCast(raw.sqlite3_bind_blob(stmt_handle.ptr, @intCast(idx), value, @intCast(n), raw.SQLITE_STATIC));
     }
 
     pub fn columnType(stmt_handle: StmtHandle, col: i32) Rc {
