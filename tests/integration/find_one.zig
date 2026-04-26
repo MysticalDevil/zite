@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
     age: ?i64,
     created_at: i64,
 
@@ -29,16 +28,16 @@ test "mapper.findOne: where + params" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var name1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
-    var name2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var name2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer name2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = name1, .age = null, .created_at = 1 });
     _ = try repo.insert(.{ .id = 0, .name = name2, .age = 42, .created_at = 2 });
 
-    var bob = try orm.types.OwnedText.fromConst(a, "bob");
+    var bob = try zite.types.OwnedText.fromConst(a, "bob");
     defer bob.deinit(a);
     var got = (try repo.findOneSql("\"name\"=?1", .{bob})).?;
     defer freeUser(a, &got);
@@ -52,7 +51,7 @@ test "mapper.findOne: where + params" {
     try std.testing.expectEqualStrings("alice", got2.name.value);
     try std.testing.expect(got2.age == null);
 
-    var nobody = try orm.types.OwnedText.fromConst(a, "nobody");
+    var nobody = try zite.types.OwnedText.fromConst(a, "nobody");
     defer nobody.deinit(a);
     const none = try repo.findOneSql("\"name\"=?1", .{nobody});
     try std.testing.expect(none == null);
@@ -66,11 +65,11 @@ test "mapper.findOne: returns UnexpectedExtraRows for multi-match query" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var name1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
-    var name2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var name2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer name2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = name1, .age = null, .created_at = 1 });
     _ = try repo.insert(.{ .id = 0, .name = name2, .age = null, .created_at = 2 });

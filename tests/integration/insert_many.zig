@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
     age: ?i64,
 
     pub const Meta = .{
@@ -24,13 +23,13 @@ test "mapper.insertMany: inserts multiple rows and supports empty input" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
-    var n3 = try orm.types.OwnedText.fromConst(a, "carol");
+    var n3 = try zite.types.OwnedText.fromConst(a, "carol");
     defer n3.deinit(a);
 
     const inserted = try repo.insertMany(&[_]User{
@@ -43,9 +42,9 @@ test "mapper.insertMany: inserts multiple rows and supports empty input" {
     const inserted_empty = try repo.insertMany(&[_]User{});
     try std.testing.expectEqual(@as(usize, 0), inserted_empty);
 
-    var st_count = try orm.Stmt.init(&db, "SELECT COUNT(*) FROM users;");
+    var st_count = try zite.Stmt(zite.drivers.sqlite3).init(&db, "SELECT COUNT(*) FROM users;");
     defer st_count.deinit();
-    try std.testing.expectEqual(orm.StepResult.row, try st_count.step());
+    try std.testing.expectEqual(zite.StepResult.row, try st_count.step());
     try std.testing.expectEqual(@as(i64, 3), try st_count.colInt(0));
-    try std.testing.expectEqual(orm.StepResult.done, try st_count.step());
+    try std.testing.expectEqual(zite.StepResult.done, try st_count.step());
 }

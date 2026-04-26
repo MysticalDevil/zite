@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
     age: ?i64,
 
     pub const Meta = .{
@@ -27,11 +26,11 @@ test "owned: findByIdOwned and findManyOwned free via deinit" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var name1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
-    var name2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var name2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer name2.deinit(a);
     const id1 = try repo.insert(.{ .id = 0, .name = name1, .age = 10 });
     _ = try repo.insert(.{ .id = 0, .name = name2, .age = 20 });
@@ -65,15 +64,15 @@ test "owned: empty text is released without leaks" {
     }
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try zite.Db(zite.drivers.sqlite3).open(a, ":memory:");
     defer db.deinit();
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    const ddl = try orm.schema.createTableSqlFromMeta(a, User);
+    const ddl = try zite.schema.createTableSqlFromMeta(a, User);
     defer a.free(ddl);
     try db.exec(ddl);
 
-    var empty = try orm.types.OwnedText.fromConst(a, "");
+    var empty = try zite.types.OwnedText.fromConst(a, "");
     defer empty.deinit(a);
     const id = try repo.insert(.{ .id = 0, .name = empty, .age = null });
     if (try repo.findByIdOwned(id)) |owned| {

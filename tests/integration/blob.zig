@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const Doc = struct {
     id: i64,
-    data: orm.types.OwnedBlob,
+    data: zite.types.OwnedBlob,
 
     pub const Meta = .{
         .table = "docs",
@@ -23,10 +22,10 @@ test "mapper: blob round trip" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, Doc);
-    var repo = orm.repository(Doc, &db, a);
+    var repo = zite.repository(Doc, &db, a);
 
     const payload = [_]u8{ 0, 1, 2, 3, 4, 5 };
-    var data = try orm.types.OwnedBlob.fromConst(a, payload[0..]);
+    var data = try zite.types.OwnedBlob.fromConst(a, payload[0..]);
     defer data.deinit(a);
     _ = try repo.insert(.{
         .id = 0,

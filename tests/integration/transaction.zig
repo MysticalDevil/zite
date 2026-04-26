@@ -1,18 +1,17 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 test "tx types are exposed from root and orm" {
-    const m1: orm.TxMode = .deferred;
+    const m1: zite.TxMode = .deferred;
     _ = m1;
-    const m2: orm.TxMode = .immediate;
+    const m2: zite.TxMode = .immediate;
     _ = m2;
 }
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
 
     pub const Meta = .{
         .table = "users",
@@ -29,12 +28,12 @@ test "orm transaction: commit persists rows" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     var tx = try repo.beginTx(.deferred);
     defer tx.deinit();
 
-    var n = try orm.types.OwnedText.fromConst(a, "alice");
+    var n = try zite.types.OwnedText.fromConst(a, "alice");
     defer n.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n });
     try tx.commit();
@@ -56,12 +55,12 @@ test "orm transaction: rollback drops rows" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     {
         var tx = try repo.beginTx(.deferred);
         defer tx.deinit();
-        var n = try orm.types.OwnedText.fromConst(a, "alice");
+        var n = try zite.types.OwnedText.fromConst(a, "alice");
         defer n.deinit(a);
         _ = try repo.insert(.{ .id = 0, .name = n });
         // no commit
@@ -79,11 +78,11 @@ test "orm transaction: explicit rollback drops rows" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     var tx = try repo.beginTx(.deferred);
     defer tx.deinit();
-    var n = try orm.types.OwnedText.fromConst(a, "alice");
+    var n = try zite.types.OwnedText.fromConst(a, "alice");
     defer n.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n });
     try tx.rollback();

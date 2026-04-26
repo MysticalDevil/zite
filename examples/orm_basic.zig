@@ -4,7 +4,6 @@ const Allocator = std.mem.Allocator;
 const zite = @import("zite");
 const Driver = zite.drivers.sqlite3;
 const Db = zite.Db(Driver);
-const Orm = zite.orm(Driver);
 
 const OwnedText = zite.types.OwnedText;
 const EpochMillis = zite.types.EpochMillis;
@@ -35,7 +34,7 @@ pub fn main() !void {
 
     var db = try Db.open(a, ":memory:");
     defer db.deinit();
-    var repo = Orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     const ddl = try zite.schema.createTableSqlFromMeta(a, User);
     defer a.free(ddl);

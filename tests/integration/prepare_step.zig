@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
     age: ?u32,
     created_at: i64,
 };
@@ -27,22 +26,22 @@ test "prepare_v2 + step: verify users table exists via sqlite_master" {
     const qz = try a.dupeZ(u8, q);
     defer a.free(qz);
 
-    var stmt_opt: ?orm.raw.StmtHandle = null;
-    const rc_prep = orm.raw.stmt.prepare(db.handle, qz.ptr, -1, &stmt_opt);
-    try std.testing.expectEqual(orm.raw.SQLITE_OK, rc_prep);
+    var stmt_opt: ?zite.raw.StmtHandle = null;
+    const rc_prep = zite.raw.stmt.prepare(db.handle, qz.ptr, -1, &stmt_opt);
+    try std.testing.expectEqual(zite.raw.SQLITE_OK, rc_prep);
     const stmt = stmt_opt.?;
 
-    defer _ = orm.raw.stmt.finalize(stmt);
+    defer _ = zite.raw.stmt.finalize(stmt);
 
     // Step 4: step: Result row found -> SQLITE_ROW
-    const rc_step1 = orm.raw.stmt.step(stmt);
-    try std.testing.expectEqual(orm.raw.SQLITE_ROW, rc_step1);
+    const rc_step1 = zite.raw.stmt.step(stmt);
+    try std.testing.expectEqual(zite.raw.SQLITE_ROW, rc_step1);
 
     // Step 5: Read column 0 (SELECT 1), should be 1
-    const v = orm.raw.stmt.columnInt(stmt, 0);
+    const v = zite.raw.stmt.columnInt(stmt, 0);
     try std.testing.expectEqual(@as(i32, 1), v);
 
     // Step 6: Step once more -> SQLITE_DONE
-    const rc_step2 = orm.raw.stmt.step(stmt);
-    try std.testing.expectEqual(orm.raw.SQLITE_DONE, rc_step2);
+    const rc_step2 = zite.raw.stmt.step(stmt);
+    try std.testing.expectEqual(zite.raw.SQLITE_DONE, rc_step2);
 }

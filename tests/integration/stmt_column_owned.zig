@@ -1,20 +1,19 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 
 test "Stmt: colIsNull + colTextOwned" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try zite.Db(zite.drivers.sqlite3).open(a, ":memory:");
     defer db.deinit();
 
-    var st = try orm.Stmt.init(&db, "SELECT NULL, 'zig', '';");
+    var st = try zite.Stmt(zite.drivers.sqlite3).init(&db, "SELECT NULL, 'zig', '';");
     defer st.deinit();
 
     const r = try st.step();
-    try std.testing.expectEqual(orm.StepResult.row, r);
+    try std.testing.expectEqual(zite.StepResult.row, r);
 
     try std.testing.expect(try st.colIsNull(0));
     try std.testing.expect(!(try st.colIsNull(1)));
@@ -32,5 +31,5 @@ test "Stmt: colIsNull + colTextOwned" {
     try std.testing.expectEqual(@as(usize, 0), t2.len);
 
     const r2 = try st.step();
-    try std.testing.expectEqual(orm.StepResult.done, r2);
+    try std.testing.expectEqual(zite.StepResult.done, r2);
 }

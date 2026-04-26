@@ -3,7 +3,6 @@ const zite = @import("zite");
 const helpers = @import("helpers.zig");
 const Driver = zite.drivers.sqlite3;
 const Db = zite.Db(Driver);
-const Orm = zite.orm(Driver);
 const AsyncPool = zite.AsyncPool(Driver);
 
 const User = struct {
@@ -112,7 +111,7 @@ test "async_pool: concurrent findByIdOwned queries" {
         var db = try Db.open(std.testing.allocator, db_path);
         defer db.deinit();
         try helpers.createTableFromMeta(std.testing.allocator, &db, User);
-        var repo = Orm.repository(User, &db, std.testing.allocator);
+        var repo = zite.repository(User, &db, std.testing.allocator);
 
         var n1 = try zite.types.OwnedText.fromConst(std.testing.allocator, "alice");
         defer n1.deinit(std.testing.allocator);
@@ -185,7 +184,7 @@ test "async_pool: findOne returns owned row value and caller frees it" {
         var db = try Db.open(std.testing.allocator, db_path);
         defer db.deinit();
         try helpers.createTableFromMeta(std.testing.allocator, &db, User);
-        var repo = Orm.repository(User, &db, std.testing.allocator);
+        var repo = zite.repository(User, &db, std.testing.allocator);
 
         var name = try zite.types.OwnedText.fromConst(std.testing.allocator, "carol");
         defer name.deinit(std.testing.allocator);
@@ -217,7 +216,7 @@ test "async_pool: update persists changes" {
     {
         var db = try Db.open(std.testing.allocator, fixture.db_path);
         defer db.deinit();
-        var repo = Orm.repository(User, &db, std.testing.allocator);
+        var repo = zite.repository(User, &db, std.testing.allocator);
         var name = try zite.types.OwnedText.fromConst(std.testing.allocator, "alice");
         defer name.deinit(std.testing.allocator);
         _ = try repo.insert(.{ .id = 1, .name = name, .age = 20 });
@@ -255,7 +254,7 @@ test "async_pool: deleteById removes row" {
     {
         var db = try Db.open(std.testing.allocator, fixture.db_path);
         defer db.deinit();
-        var repo = Orm.repository(User, &db, std.testing.allocator);
+        var repo = zite.repository(User, &db, std.testing.allocator);
         var name = try zite.types.OwnedText.fromConst(std.testing.allocator, "bob");
         defer name.deinit(std.testing.allocator);
         _ = try repo.insert(.{ .id = 1, .name = name, .age = 40 });
@@ -288,7 +287,7 @@ test "async_pool: upsert inserts then updates" {
         .name = name1,
         .age = 20,
     });
-    try std.testing.expectEqual(Orm.UpsertResult.inserted, first);
+    try std.testing.expectEqual(zite.UpsertResult.inserted, first);
 
     var name2 = try zite.types.OwnedText.fromConst(std.testing.allocator, "alice-updated");
     defer name2.deinit(std.testing.allocator);
@@ -297,7 +296,7 @@ test "async_pool: upsert inserts then updates" {
         .name = name2,
         .age = 21,
     });
-    try std.testing.expectEqual(Orm.UpsertResult.updated, second);
+    try std.testing.expectEqual(zite.UpsertResult.updated, second);
 
     const row_opt = try pool.findByIdOwned(io, User, std.testing.allocator, @as(i64, 1));
     try std.testing.expect(row_opt != null);

@@ -1,8 +1,7 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 
-const types = orm.types;
+const types = zite.types;
 
 const Sample = struct {
     id: i64,
@@ -21,11 +20,11 @@ test "float + EpochMillis: insert -> findById -> findOne" {
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try zite.Db(zite.drivers.sqlite3).open(a, ":memory:");
     defer db.deinit();
-    var repo = orm.repository(Sample, &db, a);
+    var repo = zite.repository(Sample, &db, a);
 
-    const ddl = try orm.schema.createTableSqlFromMeta(a, Sample);
+    const ddl = try zite.schema.createTableSqlFromMeta(a, Sample);
     defer a.free(ddl);
     try db.exec(ddl);
 

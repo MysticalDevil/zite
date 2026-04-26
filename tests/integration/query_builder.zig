@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
     age: ?i64,
 
     pub const Meta = .{
@@ -15,7 +14,7 @@ const User = struct {
     };
 };
 
-test "orm.query: whereEq/orderBy/limit/offset/whereSql" {
+test "zite.query: whereEq/orderBy/limit/offset/whereSql" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -24,13 +23,13 @@ test "orm.query: whereEq/orderBy/limit/offset/whereSql" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
-    var n3 = try orm.types.OwnedText.fromConst(a, "carol");
+    var n3 = try zite.types.OwnedText.fromConst(a, "carol");
     defer n3.deinit(a);
 
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 20) });
@@ -59,7 +58,7 @@ test "orm.query: whereEq/orderBy/limit/offset/whereSql" {
     try std.testing.expectEqualStrings("carol", many[0].value.name.value);
 }
 
-test "orm.query: orderBy supports multi-column sort" {
+test "zite.query: orderBy supports multi-column sort" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -68,13 +67,13 @@ test "orm.query: orderBy supports multi-column sort" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "b");
+    var n1 = try zite.types.OwnedText.fromConst(a, "b");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "a");
+    var n2 = try zite.types.OwnedText.fromConst(a, "a");
     defer n2.deinit(a);
-    var n3 = try orm.types.OwnedText.fromConst(a, "c");
+    var n3 = try zite.types.OwnedText.fromConst(a, "c");
     defer n3.deinit(a);
 
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 20) });
@@ -96,7 +95,7 @@ test "orm.query: orderBy supports multi-column sort" {
     try std.testing.expectEqualStrings("b", rows[2].value.name.value);
 }
 
-test "orm.query: iterateViews and row handle lookups are zero-copy" {
+test "zite.query: iterateViews and row handle lookups are zero-copy" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -105,11 +104,11 @@ test "orm.query: iterateViews and row handle lookups are zero-copy" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 22) });
@@ -148,7 +147,7 @@ test "orm.query: iterateViews and row handle lookups are zero-copy" {
     }
 }
 
-test "orm.query: row view becomes stale after cursor advances" {
+test "zite.query: row view becomes stale after cursor advances" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -156,11 +155,11 @@ test "orm.query: row view becomes stale after cursor advances" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 22) });
@@ -176,7 +175,7 @@ test "orm.query: row view becomes stale after cursor advances" {
     try std.testing.expectError(error.RowViewStale, r1.get("name"));
 }
 
-test "orm.query: row handle is invalid after deinit" {
+test "zite.query: row handle is invalid after deinit" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -184,9 +183,9 @@ test "orm.query: row handle is invalid after deinit" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
 
@@ -195,7 +194,7 @@ test "orm.query: row handle is invalid after deinit" {
     try std.testing.expectError(error.StatementFinalized, one.get("name"));
 }
 
-test "orm.query: firstHandle remains valid after query builder deinit" {
+test "zite.query: firstHandle remains valid after query builder deinit" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -203,9 +202,9 @@ test "orm.query: firstHandle remains valid after query builder deinit" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
 
@@ -220,7 +219,7 @@ test "orm.query: firstHandle remains valid after query builder deinit" {
     try std.testing.expectEqual(@as(i64, 11), (try handle.get("age")).?);
 }
 
-test "orm.query: row view is finalized after cursor deinit" {
+test "zite.query: row view is finalized after cursor deinit" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -228,9 +227,9 @@ test "orm.query: row view is finalized after cursor deinit" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
 
@@ -244,7 +243,7 @@ test "orm.query: row view is finalized after cursor deinit" {
     try std.testing.expectError(error.StatementFinalized, row.get("name"));
 }
 
-test "orm.query: whereSql is atomic when param conversion fails" {
+test "zite.query: whereSql is atomic when param conversion fails" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -252,7 +251,7 @@ test "orm.query: whereSql is atomic when param conversion fails" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     var q = repo.query();
     defer q.deinit();
@@ -270,7 +269,7 @@ test "orm.query: whereSql is atomic when param conversion fails" {
     try std.testing.expectEqual(params_len_before, q.params.items.len);
 }
 
-test "orm.query: guarded raw APIs reject unsafe SQL fragments" {
+test "zite.query: guarded raw APIs reject unsafe SQL fragments" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -278,7 +277,7 @@ test "orm.query: guarded raw APIs reject unsafe SQL fragments" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     var q = repo.query();
     defer q.deinit();
@@ -293,7 +292,7 @@ test "orm.query: guarded raw APIs reject unsafe SQL fragments" {
     try std.testing.expectError(error.UnsafeSqlFragment, repo.findManyOwnedSql("1=1 -- force", .{}));
 }
 
-test "orm.query: unsafe raw APIs preserve prior behavior" {
+test "zite.query: unsafe raw APIs preserve prior behavior" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -301,9 +300,9 @@ test "orm.query: unsafe raw APIs preserve prior behavior" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 11) });
 
@@ -338,7 +337,7 @@ test "orm.query: unsafe raw APIs preserve prior behavior" {
     try std.testing.expectEqualStrings("alice", owned_mut.value.name.value);
 }
 
-test "orm.query: whereSql then whereEq keeps placeholder indices aligned" {
+test "zite.query: whereSql then whereEq keeps placeholder indices aligned" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -346,11 +345,11 @@ test "orm.query: whereSql then whereEq keeps placeholder indices aligned" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 40) });
@@ -367,7 +366,7 @@ test "orm.query: whereSql then whereEq keeps placeholder indices aligned" {
     try std.testing.expectEqual(@as(i64, 40), one_mut.value.age.?);
 }
 
-test "orm.query: whereEq then whereSql rebases relative placeholders" {
+test "zite.query: whereEq then whereSql rebases relative placeholders" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -375,11 +374,11 @@ test "orm.query: whereEq then whereSql rebases relative placeholders" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 40) });
@@ -396,7 +395,7 @@ test "orm.query: whereEq then whereSql rebases relative placeholders" {
     try std.testing.expectEqual(@as(i64, 30), one_mut.value.age.?);
 }
 
-test "orm.query: whereSql rebases anonymous placeholders after whereEq" {
+test "zite.query: whereSql rebases anonymous placeholders after whereEq" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
@@ -404,11 +403,11 @@ test "orm.query: whereSql rebases anonymous placeholders after whereEq" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 40) });

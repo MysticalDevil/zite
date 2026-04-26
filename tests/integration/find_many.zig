@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
     age: ?i64,
     created_at: i64,
 
@@ -25,13 +24,13 @@ test "mapper.findMany: ioterate rows and free owned fields" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var name1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
-    var name2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var name2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer name2.deinit(a);
-    var name3 = try orm.types.OwnedText.fromConst(a, "carol");
+    var name3 = try zite.types.OwnedText.fromConst(a, "carol");
     defer name3.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = name1, .age = null, .created_at = 1 });
     _ = try repo.insert(.{ .id = 0, .name = name2, .age = 20, .created_at = 2 });

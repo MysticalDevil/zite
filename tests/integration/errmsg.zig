@@ -1,6 +1,5 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 
 fn containsAny(hay: []const u8, needles: []const []const u8) bool {
     for (needles) |n| {
@@ -16,7 +15,7 @@ test "errmsg: exec syntax error provides message" {
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try zite.Db(zite.drivers.sqlite3).open(a, ":memory:");
     defer db.deinit();
 
     const r = db.exec("THIS IS NOT SQL;");
@@ -32,7 +31,7 @@ test "errmsg: step runtime error provides message" {
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try zite.Db(zite.drivers.sqlite3).open(a, ":memory:");
     defer db.deinit();
 
     try db.exec(
@@ -44,19 +43,19 @@ test "errmsg: step runtime error provides message" {
 
     // 第一次插入成功
     {
-        var st1 = try orm.Stmt.init(&db, "INSERT INTO users(name) VALUES (?1);");
+        var st1 = try zite.Stmt(zite.drivers.sqlite3).init(&db, "INSERT INTO users(name) VALUES (?1);");
         defer st1.deinit();
-        var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+        var name1 = try zite.types.OwnedText.fromConst(a, "alice");
         defer name1.deinit(a);
         try st1.bindOne(1, name1);
-        try std.testing.expectEqual(orm.StepResult.done, try st1.step());
+        try std.testing.expectEqual(zite.StepResult.done, try st1.step());
     }
 
     // 第二次插入触发 UNIQUE 约束，prepare 成功，step 失败
     {
-        var st2 = try orm.Stmt.init(&db, "INSERT INTO users(name) VALUES (?1);");
+        var st2 = try zite.Stmt(zite.drivers.sqlite3).init(&db, "INSERT INTO users(name) VALUES (?1);");
         defer st2.deinit();
-        var name2 = try orm.types.OwnedText.fromConst(a, "alice");
+        var name2 = try zite.types.OwnedText.fromConst(a, "alice");
         defer name2.deinit(a);
         try st2.bindOne(1, name2);
         try std.testing.expectError(error.DriverConstraint, st2.step());
@@ -72,10 +71,10 @@ test "errmsg: bind out-of-range provides message" {
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try zite.Db(zite.drivers.sqlite3).open(a, ":memory:");
     defer db.deinit();
 
-    var st = try orm.Stmt.init(&db, "SELECT ?1;");
+    var st = try zite.Stmt(zite.drivers.sqlite3).init(&db, "SELECT ?1;");
     defer st.deinit();
 
     const r = st.bindOne(2, @as(i64, 1));

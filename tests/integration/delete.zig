@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
     age: ?i64,
 
     pub const Meta = .{
@@ -22,9 +21,9 @@ test "mapper.deleteById: removes record by primary key" {
     defer db.deinit();
 
     try helpers.createTable(a, &db, User, "users");
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var name = try orm.types.OwnedText.fromConst(a, "alice");
+    var name = try zite.types.OwnedText.fromConst(a, "alice");
     defer name.deinit(a);
     const id = try repo.insert(.{ .id = 0, .name = name, .age = null });
     try std.testing.expect(id > 0);
@@ -45,7 +44,7 @@ test "mapper.deleteById: returns 0 when id not found" {
     defer db.deinit();
 
     try helpers.createTable(a, &db, User, "users");
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     const changed = try repo.deleteById(@as(i64, 9999));
     try std.testing.expectEqual(@as(i32, 0), changed);
@@ -60,12 +59,12 @@ test "mapper.deleteWhere: deletes matching rows" {
     defer db.deinit();
 
     try helpers.createTable(a, &db, User, "users");
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     // Insert two rows
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 25) });
@@ -75,7 +74,7 @@ test "mapper.deleteWhere: deletes matching rows" {
     try std.testing.expectEqual(@as(i32, 1), changed);
 
     // Bob should still exist
-    var bob_name = try orm.types.OwnedText.fromConst(a, "bob");
+    var bob_name = try zite.types.OwnedText.fromConst(a, "bob");
     defer bob_name.deinit(a);
     const bob = try repo.findOneSql("\"name\"=?1", .{bob_name});
     if (bob) |row| {
@@ -95,11 +94,11 @@ test "mapper.deleteWhere: empty clause is rejected" {
     defer db.deinit();
 
     try helpers.createTable(a, &db, User, "users");
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = null });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = null });
@@ -115,7 +114,7 @@ test "mapper.deleteWhereSql: guarded API rejects unsafe fragment" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTable(a, &db, User, "users");
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     try std.testing.expectError(
         error.UnsafeSqlFragment,
@@ -131,11 +130,11 @@ test "mapper.deleteWhereSqlUnsafe: preserves prior behavior" {
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTable(a, &db, User, "users");
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1, .age = @as(?i64, 30) });
     _ = try repo.insert(.{ .id = 0, .name = n2, .age = @as(?i64, 25) });

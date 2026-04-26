@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
     age: ?i64,
     created_at: i64,
 
@@ -29,9 +28,9 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var name1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var name1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer name1.deinit(a);
     var u = User{
         .id = 0,
@@ -52,7 +51,7 @@ test "mapper.findById: insert -> findById -> update -> findById" {
     try std.testing.expectEqual(@as(i64, 123), got1.created_at);
 
     u.id = new_id;
-    var name2 = try orm.types.OwnedText.fromConst(a, "alice2");
+    var name2 = try zite.types.OwnedText.fromConst(a, "alice2");
     defer name2.deinit(a);
     u.name = name2;
     u.age = 42;

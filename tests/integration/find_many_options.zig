@@ -1,11 +1,10 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 const helpers = @import("helpers.zig");
 
 const User = struct {
     id: i64,
-    name: orm.types.OwnedText,
+    name: zite.types.OwnedText,
 
     pub const Meta = .{
         .table = "users",
@@ -24,15 +23,15 @@ test "mapper.findManySqlWithOptions: supports meta default order_by and explicit
     defer db.deinit();
 
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
-    var n3 = try orm.types.OwnedText.fromConst(a, "carol");
+    var n3 = try zite.types.OwnedText.fromConst(a, "carol");
     defer n3.deinit(a);
-    var n4 = try orm.types.OwnedText.fromConst(a, "dave");
+    var n4 = try zite.types.OwnedText.fromConst(a, "dave");
     defer n4.deinit(a);
 
     _ = try repo.insert(.{ .id = 0, .name = n1 });
@@ -81,7 +80,7 @@ test "mapper.findManySqlWithOptions: guarded order_by rejects unsafe fragments" 
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
     try std.testing.expectError(
         error.UnsafeSqlFragment,
@@ -106,11 +105,11 @@ test "mapper.findManySqlWithOptionsUnsafe: keeps previous behavior for trusted S
     var db = try helpers.openMemoryDb(a);
     defer db.deinit();
     try helpers.createTableFromMeta(a, &db, User);
-    var repo = orm.repository(User, &db, a);
+    var repo = zite.repository(User, &db, a);
 
-    var n1 = try orm.types.OwnedText.fromConst(a, "alice");
+    var n1 = try zite.types.OwnedText.fromConst(a, "alice");
     defer n1.deinit(a);
-    var n2 = try orm.types.OwnedText.fromConst(a, "bob");
+    var n2 = try zite.types.OwnedText.fromConst(a, "bob");
     defer n2.deinit(a);
     _ = try repo.insert(.{ .id = 0, .name = n1 });
     _ = try repo.insert(.{ .id = 0, .name = n2 });

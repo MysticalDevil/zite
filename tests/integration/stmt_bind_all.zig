@@ -1,19 +1,18 @@
 const std = @import("std");
 const zite = @import("zite");
-const orm = zite.orm(zite.drivers.sqlite3);
 
 test "Stmt.bindAll: binds int/text/null and reads them back" {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const a = gpa.allocator();
 
-    var db = try orm.Db.open(a, ":memory:");
+    var db = try zite.Db(zite.drivers.sqlite3).open(a, ":memory:");
     defer db.deinit();
 
-    var st = try orm.Stmt.init(&db, "SELECT ?1 AS a, ?2 as b, ?3 as c;");
+    var st = try zite.Stmt(zite.drivers.sqlite3).init(&db, "SELECT ?1 AS a, ?2 as b, ?3 as c;");
     defer st.deinit();
 
-    var text = try orm.types.OwnedText.fromConst(a, "zig");
+    var text = try zite.types.OwnedText.fromConst(a, "zig");
     defer text.deinit(a);
     try st.bindAll(.{
         @as(i64, 42),
@@ -22,7 +21,7 @@ test "Stmt.bindAll: binds int/text/null and reads them back" {
     });
 
     const r1 = try st.step();
-    try std.testing.expectEqual(orm.StepResult.row, r1);
+    try std.testing.expectEqual(zite.StepResult.row, r1);
 
     try std.testing.expectEqual(@as(i64, 42), try st.colInt(0));
 
@@ -33,5 +32,5 @@ test "Stmt.bindAll: binds int/text/null and reads them back" {
     try std.testing.expect((try st.colTextOwned(a, 2)) == null);
 
     const r2 = try st.step();
-    try std.testing.expectEqual(orm.StepResult.done, r2);
+    try std.testing.expectEqual(zite.StepResult.done, r2);
 }
