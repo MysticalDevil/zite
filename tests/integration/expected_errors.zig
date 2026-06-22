@@ -94,10 +94,3 @@ test "error contract: public APIs expose layered error sets" {
     try std.testing.expect(returnType(zite.Stmt(zite.drivers.sqlite3).init) == zite.errors.StmtError!zite.Stmt(zite.drivers.sqlite3));
     try std.testing.expect(returnType(zite.schema.createTableSqlFromMeta) == zite.errors.SchemaError![]u8);
 }
-
-test "error contract: deprecated aggregate alias remains usable" {
-    const compat_exec: zite.errors.ZiteError = error.DriverExecFailed;
-    const compat_null: zite.errors.ZiteError = error.UnexpectedNull;
-    try std.testing.expect(compat_exec == error.DriverExecFailed);
-    try std.testing.expect(compat_null == error.UnexpectedNull);
-}

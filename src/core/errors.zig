@@ -105,6 +105,3 @@ pub const SqlBuildError = AllocError || error{
 
 /// CREATE TABLE generation only allocates.
 pub const SchemaError = AllocError;
-
-/// Deprecated aggregate kept for migration compatibility.
-pub const ZiteError = DbError || StmtError || RowReadError || OrmError || AsyncError;

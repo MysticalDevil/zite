@@ -1,0 +1,3 @@
+[global]
+exclude = [".agents", ".codex", "AGENTS.md"]
+extend-disable = ["MD013"]

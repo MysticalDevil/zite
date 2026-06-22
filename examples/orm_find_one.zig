@@ -45,7 +45,10 @@ pub fn main() !void {
     defer repo.freeOwnedRow(&user);
     _ = try repo.insert(user);
 
-    if (try repo.findOneSql("email = ?1", .{"a@example.com"})) |found| {
+    var search_email = try OwnedText.fromConst(a, "a@example.com");
+    defer search_email.deinit(a);
+
+    if (try repo.findOneSql("email = ?1", .{search_email})) |found| {
         var owned = found;
         defer repo.freeOwnedRow(&owned);
         std.debug.print("id={d}\n", .{owned.id});

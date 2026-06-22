@@ -158,4 +158,4 @@ pool.findByIdOwned(io, T, allocator, id)
 
 - Keeps low-level SQLite details isolated in `raw` + `db`.
 - Keeps ORM API ergonomic while centralizing SQL/bind/read behavior in `engine`.
-- Preserves explicit memory ownership and predictable error semantics in Zig 0.16.
+- Preserves explicit memory ownership and predictable error semantics in Zig 0.17.

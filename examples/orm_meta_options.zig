@@ -19,7 +19,7 @@ const User = struct {
         .table = "users",
         .primary_key = "id",
         .skip_primary_key_on_insert = true,
-        .rename = &.{
+        .rename = &[_]zite.meta.Rename{
             .{ .field = "created_at", .column = "createdAt" },
         },
         .skip = &.{"transient_field"},

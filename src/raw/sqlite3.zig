@@ -1,5 +1,5 @@
 /// Direct C bindings to sqlite3 (raw FFI).
-/// Hand-written extern declarations to avoid @cImport (deprecated in Zig 0.16).
+/// Hand-written extern declarations avoid build-time C translation.
 pub const sqlite3 = opaque {};
 pub const sqlite3_stmt = opaque {};
 

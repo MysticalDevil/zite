@@ -3,7 +3,7 @@
 Typed SQLite access for Zig with a small ORM layer and explicit ownership rules.
 
 > [!IMPORTANT]
-> This project targets Zig `0.16.0` on `main` and is not compatible with Zig `0.15.x`.
+> This project targets Zig `0.17.x` on `main` and is not compatible with Zig `0.16.x`.
 
 ## Highlights
 
@@ -80,7 +80,7 @@ exe.root_module.linkSystemLibrary("sqlite3", .{ .needed = true });
 ## API Stability
 
 - Stable: `Db(Driver)`, `Stmt(Driver)`, `orm(Driver)`, `schema`, `types`, `errors`.
-- Experimental: `AsyncPool` / `async_pool`. Built for Zig `0.16.0` `std.Io`; API may change.
+- Experimental: `AsyncPool` / `async_pool`. Built for Zig `0.17.x` `std.Io`; API may change.
 - Advanced/Low-level: `drivers.sqlite3`, `sqlutil`, `meta`. These are exposed for power users
   but may change when internals evolve.
 - Internal: `src/orm/engine.zig` and `src/orm/engine/*` are implementation details used by `orm` and are
@@ -139,7 +139,7 @@ pub fn main() !void {
 }
 ```
 
-## Allocator Guidance (Zig 0.16)
+## Allocator Guidance (Zig 0.17)
 
 - Debug/test scenarios: prefer `std.heap.DebugAllocator(.{})`.
 - Throughput-oriented runtime paths: consider `std.heap.smp_allocator`.
@@ -157,7 +157,7 @@ pub const Meta = .{
     // false => PK must be provided by caller and CREATE TABLE omits AUTOINCREMENT.
     .skip_primary_key_on_insert = true,
     .order_by = "\"id\" DESC",
-    .rename = &.{
+    .rename = &[_]zite.meta.Rename{
         .{ .field = "created_at", .column = "createdAt" },
     },
     .skip = &.{ "transient_field" },
@@ -208,6 +208,7 @@ Use row views when you want zero-copy access to the current statement row.
 - `repo.findByIdHandle(...)` and `repo.findOneHandleSql(...)` return a `RowHandle(T)` for single-row access.
 
 Lifecycle rules:
+
 - `RowView` is valid only until the cursor advances or is deinitialized.
 - `RowHandle` owns the underlying statement and remains valid until `deinit()`.
 - Access after cursor advance returns `error.RowViewStale`.
@@ -258,10 +259,11 @@ shared connection, can still observe a race.
 
 ## AsyncPool
 
-`AsyncPool` is an experimental execution layer for Zig `0.16.0`. It uses
+`AsyncPool` is an experimental execution layer for Zig `0.17.x`. It uses
 `std.Io.concurrent` to run blocking sqlite work on independent connections.
 
 Important constraints:
+
 - It does not make sqlite itself non-blocking; it schedules blocking work.
 - Each task opens its own `Db`.
 - `RowView` / `RowHandle` / `RowCursor` values are not allowed across the async boundary.
@@ -348,6 +350,7 @@ Driver return codes are mapped to specific errors such as
 `error.DriverBusy`, `error.DriverConstraint`, and `error.DriverIo`.
 
 Notable behavior-specific errors:
+
 - `error.StatementFinalized`: statement or row-backed handle used after `deinit()`/`finalize()`.
 - `error.RowViewStale`: a `RowView` was accessed after its cursor advanced.
 - `error.UnsafeSqlFragment`: guarded raw SQL fragment rejected by ORM safety checks.
@@ -363,7 +366,7 @@ Notable behavior-specific errors:
 
 ## Zig Version
 
-- The project targets Zig `0.16.0` on the `main` branch.
+- The project targets Zig `0.17.x` on the `main` branch.
 
 ## Examples
 
