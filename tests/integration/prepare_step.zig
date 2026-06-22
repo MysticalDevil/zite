@@ -23,7 +23,7 @@ test "prepare_v2 + step: verify users table exists via sqlite_master" {
 
     // Step 3: Compile the query statement using prepare_v2 (to avoid the sqlite3_exec callback)
     const q = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1;";
-    const qz = try a.dupeZ(u8, q);
+    const qz = try a.dupeSentinel(u8, q, 0);
     defer a.free(qz);
 
     var stmt_opt: ?zite.raw.StmtHandle = null;

@@ -20,7 +20,7 @@ test "create table from struct and verify sqlite_master" {
     try helpers.createTable(a, &db, User, "users");
 
     const query = "SELECT name FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1;";
-    const qz = try a.dupeZ(u8, query);
+    const qz = try a.dupeSentinel(u8, query, 0);
     defer a.free(qz);
 
     var stmt_opt: ?zite.raw.StmtHandle = null;

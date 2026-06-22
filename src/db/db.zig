@@ -62,7 +62,7 @@ pub fn Db(comptime Driver: type) type {
         /// Opens a database at the provided path.
         /// Caller must `deinit()` when finished.
         pub fn open(allocator: std.mem.Allocator, path: []const u8) errors.DbError!Self {
-            const path_z = try allocator.dupeZ(u8, path);
+            const path_z = try allocator.dupeSentinel(u8, path, 0);
             defer allocator.free(path_z);
 
             var db_handle: ?Driver.DbHandle = null;
@@ -103,7 +103,7 @@ pub fn Db(comptime Driver: type) type {
         /// Executes a SQL statement without returning rows.
         /// The SQL string is copied into a temporary null-terminated buffer.
         pub fn exec(self: *Self, sql: []const u8) errors.DbError!void {
-            const sql_z = try self.allocator.dupeZ(u8, sql);
+            const sql_z = try self.allocator.dupeSentinel(u8, sql, 0);
             defer self.allocator.free(sql_z);
 
             const rc = Driver.db.exec(self.handle, sql_z.ptr);
