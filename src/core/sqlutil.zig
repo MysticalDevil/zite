@@ -1,6 +1,7 @@
 const std = @import("std");
 const meta = @import("meta.zig");
 const errors = @import("errors.zig");
+const reflect = @import("reflect.zig");
 
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList(u8);
@@ -89,7 +90,7 @@ pub fn writeInsertColumnList(list: *ArrayList, gpa: Allocator, comptime T: type,
     if (ti != .@"struct") {
         @compileError("writeInsertColumnList expects a struct type");
     }
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
 
     comptime var col_i: usize = 0;
     inline for (fields) |f| {
@@ -115,7 +116,7 @@ pub fn writeUpdateSetClause(list: *ArrayList, gpa: Allocator, comptime T: type, 
     if (ti != .@"struct") {
         @compileError("writeUpdateSetClause expects a struct type");
     }
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
 
     comptime var set_i: usize = 0;
     inline for (fields) |f| {
@@ -141,7 +142,7 @@ fn fieldNameLen(comptime T: type) usize {
     if (ti != .@"struct") {
         @compileError("fieldNameLen expects a struct type");
     }
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
     comptime var total: usize = 0;
     inline for (fields) |f| total += f.name.len;
     return total;
@@ -149,7 +150,7 @@ fn fieldNameLen(comptime T: type) usize {
 
 /// Estimates SQL length for INSERT statements of T.
 pub fn estInsertLen(comptime T: type, comptime m: meta.Meta) usize {
-    const field_count = @typeInfo(T).@"struct".fields.len;
+    const field_count = comptime reflect.structFields(T).len;
     const col_count = comptime meta.insertableCount(T, m);
     const names_len = comptime fieldNameLen(T);
     const base = "INSERT INTO ".len + m.table.len + " (".len + ") VALUES (".len + ");".len;
@@ -161,7 +162,7 @@ pub fn estInsertLen(comptime T: type, comptime m: meta.Meta) usize {
 
 /// Estimates SQL length for UPDATE statements of T.
 pub fn estUpdateLen(comptime T: type, comptime m: meta.Meta) usize {
-    const field_count = @typeInfo(T).@"struct".fields.len;
+    const field_count = comptime reflect.structFields(T).len;
     const set_count = comptime meta.updateSetCount(T, m);
     const names_len = comptime fieldNameLen(T);
     const base = "UPDATE ".len + m.table.len + " SET ".len + " WHERE ".len + m.primary_key.len + "=?".len + ";".len;
@@ -173,7 +174,7 @@ pub fn estUpdateLen(comptime T: type, comptime m: meta.Meta) usize {
 
 /// Estimates SQL length for SELECT statements of T.
 pub fn estSelectLen(comptime T: type, comptime m: meta.Meta, where_len: usize, limit_one: bool) usize {
-    const fields = @typeInfo(T).@"struct".fields;
+    const fields = comptime reflect.structFields(T);
     const names_len = comptime fieldNameLen(T);
     const base = "SELECT ".len + " FROM ".len + m.table.len + ";".len;
     const name_quotes = fields.len * 2;
@@ -186,7 +187,7 @@ pub fn estSelectLen(comptime T: type, comptime m: meta.Meta, where_len: usize, l
 /// Estimates SQL length for CREATE TABLE statements of T.
 pub fn estCreateTableLen(comptime T: type, table_name: []const u8) usize {
     const names_len = comptime fieldNameLen(T);
-    const field_count = @typeInfo(T).@"struct".fields.len;
+    const field_count = comptime reflect.structFields(T).len;
     const base = "CREATE TABLE ".len + " (".len + ");".len + table_name.len;
     const name_quotes = field_count * 2;
     const separators = if (field_count > 0) (field_count - 1) * ",\n".len else 0;

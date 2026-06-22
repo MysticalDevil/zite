@@ -6,6 +6,7 @@ const Stmt = @import("../../db/stmt.zig").Stmt(Driver);
 const meta = @import("../../core/meta.zig");
 const sqlutil = @import("../../core/sqlutil.zig");
 const errors = @import("../../core/errors.zig");
+const reflect = @import("../../core/reflect.zig");
 const FindManyOptions = orm_root.FindManyOptions;
 
 fn appendSelectColumns(
@@ -18,7 +19,7 @@ fn appendSelectColumns(
         @compileError("appendSelectColumns expects a struct type");
     }
 
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
     comptime var i: usize = 0;
     inline for (fields) |f| {
         if (comptime meta.isSkipped(f.name, m)) {

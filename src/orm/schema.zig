@@ -3,6 +3,7 @@ const meta = @import("../core/meta.zig");
 const sqlutil = @import("../core/sqlutil.zig");
 const types = @import("../core/types.zig");
 const errors = @import("../core/errors.zig");
+const reflect = @import("../core/reflect.zig");
 
 /// Options that control CREATE TABLE generation.
 pub const CreateTableOptions = struct {
@@ -98,7 +99,7 @@ pub fn createTableSql(allocator: std.mem.Allocator, comptime T: type, opts: Crea
 
     try b.lit(" (\n");
 
-    const fields = info.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
 
     inline for (fields, 0..) |f, i| {
         try b.lit("  ");
@@ -158,7 +159,7 @@ pub fn createTableSqlFromMeta(allocator: std.mem.Allocator, comptime T: type) er
     try b.ident(m.table);
     try b.lit(" (\n");
 
-    const fields = info.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
     comptime var emitted_fields: usize = 0;
 
     inline for (fields) |f| {
@@ -228,7 +229,7 @@ fn fieldExists(comptime T: type, comptime name: []const u8) bool {
     if (ti != .@"struct") {
         @compileError("fieldExists expects a struct type");
     }
-    inline for (ti.@"struct".fields) |f| {
+    inline for (comptime reflect.structFields(T)) |f| {
         if (comptime std.mem.eql(u8, f.name, name)) {
             return true;
         }

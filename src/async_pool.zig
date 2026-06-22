@@ -9,6 +9,7 @@ const repository = @import("orm/repository.zig");
 const errors = zite.errors;
 const types = zite.types;
 const meta = zite.meta;
+const reflect = @import("core/reflect.zig");
 
 pub const AsyncPool = struct {
     allocator: std.mem.Allocator,
@@ -196,11 +197,11 @@ fn isAsyncResultAllowed(comptime T: type) bool {
         .optional => |opt| return isAsyncResultAllowed(opt.child),
         .array => |a| return isAsyncResultAllowed(a.child),
         .vector => |v| return isAsyncResultAllowed(v.child),
-        .@"struct" => |s| {
+        .@"struct" => {
             if (forbiddenAsyncStructType(T)) {
                 return false;
             }
-            inline for (s.fields) |f| {
+            inline for (comptime reflect.structFields(T)) |f| {
                 if (!isAsyncResultAllowed(f.type)) {
                     return false;
                 }

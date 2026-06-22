@@ -1,4 +1,5 @@
 const std = @import("std");
+const reflect = @import("reflect.zig");
 
 /// Declarative metadata for ORM mapping.
 pub const Meta = struct {
@@ -106,7 +107,7 @@ fn coerceStringSlice(comptime src: anytype) []const []const u8 {
     const T = @TypeOf(src);
     const ti = @typeInfo(T);
     if (ti == .@"struct") {
-        const fields = ti.@"struct".fields;
+        const fields = comptime reflect.structFields(T);
         const Arr = struct {
             pub const data: [fields.len][]const u8 = blk: {
                 var arr: [fields.len][]const u8 = undefined;
@@ -125,7 +126,7 @@ fn coerceRenameSlice(comptime src: anytype) []const Rename {
     const T = @TypeOf(src);
     const ti = @typeInfo(T);
     if (ti == .@"struct") {
-        const fields = ti.@"struct".fields;
+        const fields = comptime reflect.structFields(T);
         const Arr = struct {
             pub const data: [fields.len]Rename = blk: {
                 var arr: [fields.len]Rename = undefined;
@@ -148,7 +149,7 @@ fn coerceUniqueSlice(comptime src: anytype) []const []const []const u8 {
     const T = @TypeOf(src);
     const ti = @typeInfo(T);
     if (ti == .@"struct") {
-        const fields = ti.@"struct".fields;
+        const fields = comptime reflect.structFields(T);
         const Arr = struct {
             pub const data: [fields.len][]const []const u8 = blk: {
                 var arr: [fields.len][]const []const u8 = undefined;
@@ -210,7 +211,7 @@ pub fn hasPrimaryKeyField(comptime T: type, comptime m: Meta) bool {
     if (ti != .@"struct") {
         @compileError("hasPrimaryKeyField expects a struct type");
     }
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
 
     inline for (fields) |f| {
         if (comptime isPk(f.name, m.primary_key)) {
@@ -251,7 +252,7 @@ pub fn insertableCount(comptime T: type, comptime m: Meta) usize {
     if (ti != .@"struct") {
         @compileError("insertableCount expects a struct type");
     }
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
 
     comptime var n: usize = 0;
     inline for (fields) |f| {
@@ -272,7 +273,7 @@ pub fn updateSetCount(comptime T: type, comptime m: Meta) usize {
     if (ti != .@"struct") {
         @compileError("updateSetCount expects a struct type");
     }
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
 
     comptime var n: usize = 0;
     inline for (fields) |f| {

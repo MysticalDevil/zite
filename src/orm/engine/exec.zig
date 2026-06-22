@@ -2,6 +2,7 @@ const Driver = @import("../../driver/sqlite3.zig");
 const Stmt = @import("../../db/stmt.zig").Stmt(Driver);
 const meta = @import("../../core/meta.zig");
 const errors = @import("../../core/errors.zig");
+const reflect = @import("../../core/reflect.zig");
 
 /// Steps once and enforces SQLITE_DONE.
 pub fn stepExpectDone(st: *Stmt, err_on_row: anytype) (errors.StmtError || @TypeOf(err_on_row))!void {
@@ -31,7 +32,7 @@ pub fn bindInsertValues(comptime T: type, st: *Stmt, entity: T) errors.StmtError
     }
     const m = comptime meta.getMeta(T);
 
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
     var bind_i: i32 = 1;
     inline for (fields) |f| {
         if (comptime meta.isSkipped(f.name, m)) {
@@ -54,7 +55,7 @@ pub fn bindUpdateValues(comptime T: type, st: *Stmt, entity: T) errors.StmtError
     }
     const m = comptime meta.getMeta(T);
 
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
     var bind_i: i32 = 1;
 
     inline for (fields) |f| {

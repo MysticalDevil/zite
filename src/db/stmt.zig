@@ -4,6 +4,7 @@ const diag = @import("diag.zig");
 const errors = @import("../core/errors.zig");
 const driver_root = @import("../driver/root.zig");
 const driver_errors = @import("driver_errors.zig");
+const reflect = @import("../core/reflect.zig");
 
 /// Result of stepping a statement.
 pub const StepResult = enum {
@@ -255,8 +256,7 @@ pub fn Stmt(comptime Driver: type) type {
                 return error.BindAllExpectedStructOrTuple;
             }
 
-            const s = ti.@"struct";
-            inline for (s.fields, 0..) |f, i| {
+            inline for (comptime reflect.structFields(P), 0..) |f, i| {
                 const v = @field(params, f.name);
                 try self.bindOne(@as(i32, @intCast(i + 1)), v);
             }

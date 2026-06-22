@@ -5,6 +5,7 @@ const Stmt = @import("../../db/stmt.zig").Stmt(Driver);
 const types = @import("../../core/types.zig");
 const meta = @import("../../core/meta.zig");
 const errors = @import("../../core/errors.zig");
+const reflect = @import("../../core/reflect.zig");
 
 pub fn readValue(comptime FieldT: type, st: *Stmt, allocator: std.mem.Allocator, col: i32) errors.RowReadError!FieldT {
     if (FieldT == types.EpochMillis) {
@@ -105,12 +106,12 @@ fn intToEnumChecked(comptime E: type, v: i64) errors.RowReadError!E {
     const Tag = einfo.tag_type;
     const tag_value = std.math.cast(Tag, v) orelse return error.UnexpectedColumnType;
 
-    if (!einfo.is_exhaustive) {
+    if (einfo.mode == .nonexhaustive) {
         return @enumFromInt(tag_value);
     }
 
-    inline for (einfo.fields) |f| {
-        if (@intFromEnum(@field(E, f.name)) == tag_value) {
+    inline for (einfo.field_names, einfo.field_values) |_, value| {
+        if (value == tag_value) {
             return @enumFromInt(tag_value);
         }
     }
@@ -127,7 +128,7 @@ pub fn readStruct(comptime T: type, st: *Stmt, allocator: std.mem.Allocator) err
     var out: T = std.mem.zeroes(T);
     errdefer freeOwnedRow(T, allocator, &out);
 
-    const fields = ti.@"struct".fields;
+    const fields = comptime reflect.structFields(T);
     comptime var col: usize = 0;
     inline for (fields) |f| {
         if (comptime meta.isSkipped(f.name, m)) {
@@ -146,7 +147,7 @@ pub fn freeOwnedRow(comptime T: type, allocator: std.mem.Allocator, value: *T) v
     if (ti != .@"struct")
         @compileError("freeOwnedRow expects a struct type");
 
-    inline for (ti.@"struct".fields) |f| {
+    inline for (comptime reflect.structFields(T)) |f| {
         freeField(f.type, allocator, &@field(value, f.name));
     }
 }

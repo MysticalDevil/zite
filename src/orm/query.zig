@@ -6,6 +6,7 @@ const Stmt = @import("../db/stmt.zig").Stmt(Driver);
 const meta = @import("../core/meta.zig");
 const errors = @import("../core/errors.zig");
 const types = @import("../core/types.zig");
+const reflect = @import("../core/reflect.zig");
 const OrderDir = orm_root.OrderDir;
 const QueryParam = orm_root.QueryParam;
 const FindManyOptions = orm_root.FindManyOptions;
@@ -93,7 +94,7 @@ pub fn Query(comptime T: type) type {
             if (ti != .@"struct") {
                 return error.BindAllExpectedStructOrTuple;
             }
-            inline for (ti.@"struct".fields) |f| {
+            inline for (comptime reflect.structFields(P)) |f| {
                 const p = try toQueryParam(@field(params_arg, f.name));
                 try self.params.append(self.db.allocator, p);
             }
@@ -214,7 +215,7 @@ pub fn Query(comptime T: type) type {
         }
 
         fn fieldValueType(comptime field: []const u8) type {
-            inline for (@typeInfo(T).@"struct".fields) |f| {
+            inline for (comptime reflect.structFields(T)) |f| {
                 if (comptime std.mem.eql(u8, f.name, field)) {
                     if (comptime meta.isSkipped(f.name, m)) {
                         @compileError("Field " ++ field ++ " is skipped in Meta");
@@ -226,7 +227,7 @@ pub fn Query(comptime T: type) type {
         }
 
         fn columnForField(comptime field: []const u8) []const u8 {
-            inline for (@typeInfo(T).@"struct".fields) |f| {
+            inline for (comptime reflect.structFields(T)) |f| {
                 if (comptime std.mem.eql(u8, f.name, field)) {
                     if (comptime meta.isSkipped(f.name, m)) {
                         @compileError("Field " ++ field ++ " is skipped in Meta");

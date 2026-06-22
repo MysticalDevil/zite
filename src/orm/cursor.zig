@@ -3,6 +3,7 @@ const Driver = @import("../driver/sqlite3.zig");
 const Stmt = @import("../db/stmt.zig").Stmt(Driver);
 const meta = @import("../core/meta.zig");
 const errors = @import("../core/errors.zig");
+const reflect = @import("../core/reflect.zig");
 const engine = @import("engine.zig");
 
 pub fn RowView(comptime T: type) type {
@@ -28,7 +29,7 @@ pub fn RowView(comptime T: type) type {
                 @compileError("RowView requires a struct model");
             }
 
-            inline for (ti.@"struct".fields) |f| {
+            inline for (comptime reflect.structFields(T)) |f| {
                 if (comptime std.mem.eql(u8, f.name, field)) {
                     if (comptime meta.isSkipped(f.name, m)) {
                         @compileError("Field " ++ field ++ " is skipped in Meta");
@@ -46,7 +47,7 @@ pub fn RowView(comptime T: type) type {
             }
 
             comptime var col: usize = 0;
-            inline for (ti.@"struct".fields) |f| {
+            inline for (comptime reflect.structFields(T)) |f| {
                 if (comptime meta.isSkipped(f.name, m)) {
                     continue;
                 }
@@ -67,7 +68,7 @@ pub fn ViewFieldType(comptime T: type, comptime field: []const u8) type {
         @compileError("ViewFieldType requires a struct model");
     }
 
-    inline for (ti.@"struct".fields) |f| {
+    inline for (comptime reflect.structFields(T)) |f| {
         if (comptime std.mem.eql(u8, f.name, field)) {
             if (comptime meta.isSkipped(f.name, m)) {
                 @compileError("Field " ++ field ++ " is skipped in Meta");

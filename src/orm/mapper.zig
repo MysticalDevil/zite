@@ -6,6 +6,7 @@ const Stmt = @import("../db/stmt.zig").Stmt(Driver);
 const types = @import("../core/types.zig");
 const meta = @import("../core/meta.zig");
 const errors = @import("../core/errors.zig");
+const reflect = @import("../core/reflect.zig");
 const engine = @import("engine.zig");
 
 const UpsertResult = orm_root.UpsertResult;
@@ -17,7 +18,7 @@ pub fn pkFieldType(comptime T: type, comptime m: meta.Meta) type {
         @compileError("pkFieldType expects a struct type");
     }
 
-    inline for (ti.@"struct".fields) |f| {
+    inline for (comptime reflect.structFields(T)) |f| {
         if (comptime meta.isPk(f.name, m.primary_key)) {
             return f.type;
         }
@@ -31,7 +32,7 @@ pub fn pkFieldValue(comptime T: type, entity: T, comptime m: meta.Meta) pkFieldT
         @compileError("pkFieldValue expects a struct type");
     }
 
-    inline for (ti.@"struct".fields) |f| {
+    inline for (comptime reflect.structFields(T)) |f| {
         if (comptime meta.isPk(f.name, m.primary_key)) {
             return @field(entity, f.name);
         }
@@ -99,8 +100,7 @@ pub fn Rows(comptime T: type) type {
             var out: T = std.mem.zeroes(T);
             errdefer engine.row.freeOwnedRow(T, self.allocator, &out);
 
-            const ti = @typeInfo(T);
-            const fields = ti.@"struct".fields;
+            const fields = comptime reflect.structFields(T);
 
             comptime var col: usize = 0;
             inline for (fields) |f| {
